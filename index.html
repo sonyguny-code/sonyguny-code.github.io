@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.12';
+const PORTAL_VERSION='2026.10.04.13';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -833,7 +833,7 @@ function nativeSpeech(i){const p=currentProblems[i],notice=audioNotice(i,'음성
 document.addEventListener('click',e=>{const button=e.target.closest('[data-speak]');if(!button)return;e.preventDefault();e.stopImmediatePropagation();if(currentProfile==='dad'&&currentMode==='english')return;nativeSpeech(+button.dataset.speak)},{capture:true});
 const problemsWithLastStep=renderProblems;
 renderProblems=function(){problemsWithLastStep();if(currentProfile==='dad'&&currentMode==='english')document.querySelectorAll('[data-speak]').forEach(b=>b.remove());const last=document.querySelector('[data-problem="14"] .bottomNav button:last-child');if(last){last.disabled=false;last.removeAttribute('data-newjump');last.dataset.studyWrapUp='yes';last.textContent='학습 마무리 →'}};
-document.addEventListener('click',e=>{if(!e.target.closest('[data-study-wrap-up]'))return;if(role==='mom'){openMom();return}tick();persist();$('#finishPanel').classList.add('show');$('#resultTime').textContent=fmt(session.elapsed);$('#resultScore').textContent=activeSet.initialScore===null?'채점 전':`${activeSet.initialScore}/15`;$('#resultRate').textContent=`${session.answers.filter(x=>String(x||'').trim()).length}/15 답안`;$('#wrongSummary').textContent='마지막 문제까지 왔습니다. 답안을 모두 작성했다면 위의 일괄채점 버튼으로 마무리하세요. 오늘 학습으로 돌아가도 답안·필기·시간은 보존됩니다.';$('#wrongOnly').style.display='none';$('#finishPanel').scrollIntoView({block:'start',behavior:'smooth'})});
+document.addEventListener('click',e=>{if(!e.target.closest('[data-study-wrap-up]'))return;if(role==='mom'){openMom();return}if(activeSet.phase==='complete'){finishGrade();return}if(activeSet.phase==='review'){showGradeReview();return}const retry=activeSet.phase==='retry';const missing=currentProblems.findIndex((p,i)=>(!retry||session.grades[i]!=='correct')&&!String(session.answers[i]||'').trim());if(missing>=0){goProblem(missing);alert((missing+1)+'번 답안이 비어 있습니다. 답을 선택한 뒤 학습 마무리를 눌러 주세요.');return}$('#finishBtn').click()});
 const moveWithAudio=goProblem;
 goProblem=function(i){if(familyAudioPlayer)familyAudioPlayer.pause();moveWithAudio(i)};
 const openWithAudio=openStudy;
