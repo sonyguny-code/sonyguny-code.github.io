@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.11';
+const PORTAL_VERSION='2026.10.04.10';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -883,9 +883,8 @@ restoreRoute=function(state){restoreBeforeRecordOverview(state);if(state?.screen
 
 
 
-/* Supabase bridge: local-first, acknowledged writes, periodic shared reads. */
-const FAMILY_CLOUD_URL='https://ukuuyhwuwarznamouvgt.supabase.co/functions/v1/family-learning';
-const FAMILY_CLOUD_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrdXV5aHd1d2Fyem5hbW91dmd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMDQ0NjksImV4cCI6MjEwNjY4MDQ2OX0.agRcsZtLnRMeYVuP113uwbVeiGiIjSulj52DrB-8FOU';
+/* Google Drive bridge: local-first, acknowledged writes, periodic shared reads. */
+const FAMILY_CLOUD_URL=''; // Filled after the owner approves and deploys the bridge.
 const cloudKeyAllowed=k=>/^familyLearning:v3:set:(yeju|yeyeon|dad):\d{4}-\d{2}-\d{2}:(fraction|review|english|japanese)$/.test(k)||/^familyLearning:v3:records:(yeju|yeyeon|dad)$/.test(k)||/^familyMathPortal:v1:(yeju|yeyeon|dad)$/.test(k)||k==='familyLearning:englishLesson';
 const localWriteBeforeCloud=writeJSON;
 let cloudApplying=false,cloudBusy=false,cloudLastSaved=null;
@@ -899,8 +898,8 @@ writeJSON=function(key,value){const saved=localWriteBeforeCloud(key,value);if(sa
 window.FamilyLearningRepository.save=async function(key,value){writeJSON(key,value)};
 window.FamilyLearningRepository.sync=async function(){syncCloud()};
 function repaintCloudViews(){const screen=$('.screen.active')?.id;if(screen==='study')return;if(screen==='dashboard')openDashboard(currentProfile);else if(screen==='records')renderCalendar();else if(screen==='home')renderHome();else if(screen==='mom')openMom()}
-async function cloudRequest(payload){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);try{const response=await fetch(FAMILY_CLOUD_URL,{method:payload?'POST':'GET',credentials:'omit',signal:controller.signal,headers:{apikey:FAMILY_CLOUD_KEY,Authorization:'Bearer '+FAMILY_CLOUD_KEY,'Content-Type':'application/json'},body:payload?JSON.stringify(payload):undefined});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'백업 연결 오류');return result}finally{clearTimeout(timer)}}
-async function syncCloud(upload=false){if(!FAMILY_CLOUD_URL||cloudBusy)return;if(!navigator.onLine){cloudStatus('인터넷 연결 없음 · 기기에 저장됨, 연결 후 저장 버튼을 눌러 주세요.');return}cloudBusy=true;const changes=upload===true?JSON.parse(JSON.stringify(cloudDirty)):{};if(upload===true)cloudStatus('학습기록을 온라인에 저장하는 중…');try{const request=cloudUUID(),hasChanges=Object.keys(changes).length>0;const result=await cloudRequest(hasChanges?{device:cloudDevice,request,changes}:null);if(hasChanges&&result.ack!==request)throw Error('저장 확인 실패');applyCloudResult(result,changes);if(upload===true&&!Object.keys(cloudDirty).length)cloudStatus('학습기록 온라인 저장 완료 ✓ · 다른 기기에서도 볼 수 있습니다.')}catch{cloudStatus('온라인 연결 지연 · 기기 저장 유지, 저장 버튼으로 재시도해 주세요.')}finally{cloudBusy=false}}
+function cloudRead(){return new Promise((resolve,reject)=>{const callback='familyCloudResponse_'+cloudUUID().replace(/-/g,''),script=document.createElement('script');let timer;const cleanup=()=>{clearTimeout(timer);script.remove();delete window[callback]};window[callback]=data=>{cleanup();data?.ok?resolve(data):reject(Error(data?.error||'백업 응답 오류'))};script.onerror=()=>{cleanup();reject(Error('백업 연결 오류'))};timer=setTimeout(()=>{cleanup();reject(Error('백업 응답 지연'))},30000);script.src=FAMILY_CLOUD_URL+'?callback='+callback+'&device='+encodeURIComponent(cloudDevice)+'&t='+Date.now();document.head.append(script)})}
+async function syncCloud(upload=false){if(!FAMILY_CLOUD_URL||cloudBusy)return;if(!navigator.onLine){cloudStatus('인터넷 연결 없음 · 기기에 저장됨, 연결 후 저장 버튼을 눌러 주세요.');return}cloudBusy=true;const changes=upload===true?JSON.parse(JSON.stringify(cloudDirty)):{};if(upload===true)cloudStatus('학습기록을 온라인에 저장하는 중…');try{let result;if(Object.keys(changes).length){const request=cloudUUID(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45000);try{await fetch(FAMILY_CLOUD_URL,{method:'POST',mode:'no-cors',credentials:'omit',signal:controller.signal,headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({device:cloudDevice,request,changes})})}finally{clearTimeout(timeout)}for(let i=0;i<3;i++){result=await cloudRead();if(result.ack===request)break;if(i===2)throw Error('저장 확인 실패')}if(result.ack!==request)throw Error('저장 확인 실패')}else result=await cloudRead();applyCloudResult(result,changes);if(upload===true&&!Object.keys(cloudDirty).length)cloudStatus('학습기록 온라인 저장 완료 ✓ · 다른 기기에서도 볼 수 있습니다.')}catch{cloudStatus('온라인 연결 지연 · 기기 저장 유지, 저장 버튼으로 재시도해 주세요.')}finally{cloudBusy=false}}
 function applyCloudResult(result,sent){let changed=false;cloudApplying=true;try{for(const [key,item] of Object.entries(result.storage||{})){if(!cloudKeyAllowed(key)||typeof item.value!=='string')continue;const dirty=cloudDirty[key],wasSent=sent[key];if(dirty&&(!wasSent||dirty.value!==wasSent.value))continue;
   // An active solving screen keeps its live vectors/answers until it is left.
   if($('.screen.active')?.id==='study'&&key===setKey(currentProfile,currentMode,activeDate)){if(wasSent&&dirty?.value===wasSent.value)delete cloudDirty[key];continue;}
