@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.15';
+const PORTAL_VERSION='2026.10.04.16';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -782,6 +782,7 @@ function backup(){const data={schema:3,exportedAt:new Date().toISOString(),stora
 const bar=$('#home .toolbar');bar.insertAdjacentHTML('beforeend','<button class="btn light" id="backupBtn">기록·필기 백업</button><button class="btn light" id="importBtn">백업 가져오기</button><input id="importFile" type="file" accept="application/json" hidden><div class="small" id="versionInfo"></div>');$('#versionInfo').textContent='학습 버전 '+PORTAL_VERSION+' · 기존 내용·기록 보존';$('#backupBtn').onclick=backup;$('#importBtn').onclick=()=>$('#importFile').click();$('#importFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(!data.storage||typeof data.storage!=='object')throw Error();for(const [k,v] of Object.entries(data.storage))if(k.startsWith('family')&&typeof v==='string'&&localStorage.getItem(k)===null)localStorage.setItem(k,v);alert('백업을 가져왔습니다. 이미 있는 기록은 보존했습니다.');renderHome()}catch{alert('가족학습 백업 파일을 확인해 주세요.')}};
 const style=document.createElement('style');style.textContent='.choices{display:grid;gap:10px;margin:16px 0}.choice{display:flex;gap:12px;align-items:center;padding:15px;border:1px solid #dde3ec;border-radius:12px;cursor:pointer}.choice:has(input:checked){background:#eef2ff;border-color:#4768e6}.choice input{width:20px;height:20px}.answerInput{display:block;width:100%;padding:14px;margin:10px 0;font:inherit;border:1px solid #cfd7e4;border-radius:12px}.fraction .top{margin:0;display:block}.explain.show{display:block}select{padding:9px;max-width:100%;border:1px solid #dde3ec;border-radius:10px}';document.head.append(style);
 renderHome();
+
 
 
 
@@ -952,7 +953,7 @@ function mathChoiceOptions(problem,fractionMode,index){
   for(let i=chosen.length-1;i>0;i--){const j=ri(random,0,i);[chosen[i],chosen[j]]=[chosen[j],chosen[i]]}
   return {answer,options:chosen};
 }
-function prepareMathChoices(set){if(!['yeju','yeyeon'].includes(set.profile)||!['fraction','review'].includes(set.mode)||set.mathChoiceFormat===2)return set;
+function prepareMathChoices(set){if(!['yeju','yeyeon'].includes(set.profile)||!['fraction','review'].includes(set.mode)||set.mathChoiceFormat===2&&set.problems.every(p=>p.options?.length===4&&!p.manual))return set;
   if(!set.previousQuestionFormats)set.previousQuestionFormats=[{version:set.version,problems:JSON.parse(JSON.stringify(set.problems)),answers:[...set.answers]}];
   set.problems=set.problems.map((original,i)=>{const p={...original},fractionMode=set.mode==='fraction'||(set.profile==='yeyeon'&&numberAnswer(p.answer)!==null&&!Number.isInteger(numberAnswer(p.answer))&&!p.topic.includes('소수'))||p.topic.includes('분수')||p.prompt.includes('class="fraction"'),choice=mathChoiceOptions(p,fractionMode,i);p.answer=choice.answer;p.options=choice.options;p.manual=false;p.concept=p.concept||p.hint||p.topic;if(fractionMode&&/\d+\.\d+/.test(p.explain))p.explain=p.explain.replace(/\d+\.\d+/g,value=>mathFractionText(+value));const saved=set.answers[i];if(saved&&isCorrect(saved,choice.answer))set.answers[i]=choice.answer;return p});set.mathChoiceFormat=2;return set;
 }
@@ -960,6 +961,7 @@ const dailySetBeforeMathChoices=dailySet;
 dailySet=function(p,m,d=TODAY){const set=dailySetBeforeMathChoices(p,m,d);prepareMathChoices(set);writeJSON(setKey(p,m,d),set);return set};
 const dashboardBeforeMathChoices=openDashboard;
 openDashboard=function(p){dashboardBeforeMathChoices(p);if(['yeju','yeyeon'].includes(p))for(const mode of ['fraction','review']){const card=$(`[data-start="${mode}"]`)?.closest('.studyCard');if(card){const text=card.querySelector('p');text.textContent+=' · 모두 객관식 · 전체 풀이 후 채점'}}};
+
 
 /* Korean calendar day; retain the old day's local answers before reloading. */
 function localDate(d=new Date()){return new Date(d.getTime()+9*60*60*1000).toISOString().slice(0,10)}
@@ -1063,6 +1065,40 @@ saveDrawingDraft=function(){if(role==='mom')return;saveDrawingBeforeSharedInk();
 for(const key of Object.keys(localStorage)){if(!key.startsWith('familyMathDrawingDraft:v2:')||!cloudKeyAllowed(key))continue;const draft=readJSON(key,null);if(draft?.strokes?.some(page=>page?.length))markCloudDirty(key,draft)}
 const initCanvasesBeforeSharedInk=initCanvases;
 initCanvases=function(){const draft=readJSON(draftKey(),null);if(draft?.strokes){session.draftStrokes=Array.from({length:15},(_,i)=>session.draftStrokes?.[i]?.length?session.draftStrokes[i]:draft.strokes[i]||[])}initCanvasesBeforeSharedInk()};
+
+function isFreeJapanese(profile=currentProfile,mode=currentMode){return profile==='yeju'&&mode==='japanese'}
+let academicRecordsView=false;
+const modesBeforeFreeStudy=modes;
+modes=function(profile){const result=modesBeforeFreeStudy(profile);return academicRecordsView&&profile==='yeju'?result.filter(mode=>mode!=='japanese'):result};
+const recordsBeforeFreeStudy=allRecords;
+allRecords=function(profile){const records=JSON.parse(JSON.stringify(recordsBeforeFreeStudy(profile)));if(profile==='yeju')for(const date of Object.keys(records)){delete records[date].japanese;if(!Object.keys(records[date]).length)delete records[date]}return records};
+const savePartBeforeFreeStudy=savePart;
+savePart=function(profile,mode,data,date=TODAY){if(!isFreeJapanese(profile,mode))savePartBeforeFreeStudy(profile,mode,data,date)};
+const persistBeforeFreeStudy=persist;
+persist=function(){if(activeSet&&activeSet.profile===currentProfile&&activeSet.mode===currentMode&&role!=='mom'&&isFreeJapanese(activeSet.profile,activeSet.mode)){if(activeSet.initialScore!=null&&!activeSet.previousAssessment)activeSet.previousAssessment={initialScore:activeSet.initialScore,initialGrades:activeSet.initialGrades,elapsed:activeSet.elapsed};activeSet.initialScore=null;activeSet.elapsed=0;session.elapsed=0;session.grades=Array(15).fill(null)}persistBeforeFreeStudy()};
+const calendarBeforeFreeStudy=renderCalendar;
+renderCalendar=function(){academicRecordsView=true;try{calendarBeforeFreeStudy()}finally{academicRecordsView=false}};
+const datePanelBeforeFreeStudy=showLearningDate;
+showLearningDate=function(profile,date){academicRecordsView=true;try{datePanelBeforeFreeStudy(profile,date)}finally{academicRecordsView=false}};
+const dayRecordBeforeFreeStudy=getDayRecord;
+getDayRecord=function(profile,date=TODAY){const record={...dayRecordBeforeFreeStudy(profile,date)};if(profile==='yeju')delete record.japanese;return record};
+for(const profile of ['yeju','yeyeon'])PROFILES[profile].scope=PROFILES[profile].scope.replace(/\s*아직 배우지 않은.*$/,'').replace(/\s*이후 합동.*$/,'');
+PROFILES.dad.scope='영어: 중급 회화 표현·숙어·구동사 / 일본어: 히라가나 읽기·기초 단어';
+const dashboardBeforeFreeStudy=openDashboard;
+openDashboard=function(profile){dashboardBeforeFreeStudy(profile);if(profile!=='yeju')return;const card=$('[data-start="japanese"]')?.closest('.studyCard');if(card){card.querySelector('.statusBox').textContent='자유학습 · 성적 기록 없음';card.querySelector('button').textContent='일본어 자유학습';}const subjects=modes(profile).filter(mode=>mode!=='japanese');$('#todayBar').style.width=subjects.filter(mode=>readJSON(setKey(profile,mode),{})?.phase==='complete').length/subjects.length*100+'%'};
+const homeBeforeFreeStudy=renderHome;
+renderHome=function(){homeBeforeFreeStudy();for(const badge of $$('#profiles [data-profile="yeju"] .pill'))if(/日本語|일본어/.test(badge.textContent)){badge.textContent='일본어 자유학습';badge.classList.remove('done')}};
+function finishFreeJapanese(){clearInterval(session.timer);session.started=false;session.finished=true;activeSet.phase='complete';persist();syncCloud(true);openDashboard('yeju')}
+const openStudyBeforeFreeStudy=openStudy;
+openStudy=function(mode){openStudyBeforeFreeStudy(mode);if(!isFreeJapanese()||role==='mom')return;clearInterval(session.timer);session.started=false;$('#timer').textContent='자유학습';$('#finishBtn').disabled=false;$('#finishBtn').textContent='자유학습 마무리';$('#answerBtn').disabled=false;$('#studySub').textContent='예주 · 히라가나 자유학습 · 점수와 시간 기록 없음';$('#finishPanel').classList.remove('show')};
+document.addEventListener('click',event=>{if(!isFreeJapanese()||role==='mom'||!event.target.closest('#finishBtn,[data-study-wrap-up]'))return;event.preventDefault();event.stopImmediatePropagation();finishFreeJapanese()},{capture:true});
+const renderBeforeClearMathInstructions=renderProblems;
+function objectiveMathPrompt(text){return text.replace(/단,\s*답만 쓰지 말고[\s\S]*$/,'보기에서 최종 답을 고르세요. 두 단계의 계산은 필기란에서 연습해 보세요.').replace(/마지막으로,\s*②에서[\s\S]*$/,'위 조건을 모두 만족하는 보기를 고르세요.').replace(/① 먼저[\s\S]*을 차례대로 쓰세요\./,'최종 답을 보기에서 고르세요.').replace(/모두 쓰고/g,'모두 확인하고').replace(/모두 쓰며/g,'모두 확인하며').replace(/모두 쓰세요/g,'모두 나타낸 보기를 고르세요');}
+renderProblems=function(){if(['yeju','yeyeon'].includes(currentProfile)&&['fraction','review'].includes(currentMode)){prepareMathChoices(activeSet);currentProblems=activeSet.problems.map(problem=>({...problem,prompt:objectiveMathPrompt(problem.prompt),topic:problem.topic.replace('서술형','복합 객관식')}))}renderBeforeClearMathInstructions();if(role==='mom')currentProblems.forEach((problem,i)=>{if(!problem.options)return;const section=document.querySelector(`[data-problem="${i}"]`),choices=document.createElement('div');choices.className='choices';choices.innerHTML=problem.options.map((option,k)=>`<div class="choice" ${option===problem.answer?'style="background:#e5f5ed;border-color:#138a5b"':''}><span>${['①','②','③','④'][k]} ${esc(readableMath(option))}${option===problem.answer?' · ✓ 정답':''}</span></div>`).join('');section.querySelector('.canvasWrap').before(choices)});};
+renderHome();
+const momSidebarBeforeFreeStudy=renderMomSidebar;
+renderMomSidebar=function(){momSidebarBeforeFreeStudy();const label=$('[data-mom-person="yeju"][data-mom-mode="japanese"] small');if(label)label.textContent='자유학습'};
+
 
 </script>
 </body>
