@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.11';
+const PORTAL_VERSION='2026.10.04.12';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -894,7 +894,7 @@ const cloudDirty=readJSON('familyLearning:cloud:dirty',{});
 let cloudDevice=readJSON('familyLearning:cloud:device',null);
 if(!cloudDevice){cloudDevice='device-'+cloudUUID();localWriteBeforeCloud('familyLearning:cloud:device',cloudDevice)}
 function cloudStatus(text){const el=$('#cloudStatus');if(el)el.textContent=text;const study=$('#cloudStudyStatus');if(study)study.textContent=text}
-function markCloudDirty(key,value){cloudDirty[key]={value:JSON.stringify(value),updatedAt:new Date().toISOString()};localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty);cloudStatus(FAMILY_CLOUD_URL?'기기에 저장됨 · 학습기록 저장을 누르면 온라인 백업됩니다.':'기기에 저장됨 · 온라인 백업은 연결 승인 대기 중입니다.')}
+function markCloudDirty(key,value){cloudDirty[key]={value:JSON.stringify(value),updatedAt:new Date().toISOString()};localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty);cloudStatus(FAMILY_CLOUD_URL?'기기에 저장됨 · 일괄채점·학습완료 시 온라인 자동 저장 · 저장 버튼으로도 백업할 수 있습니다.':'기기에 저장됨 · 온라인 백업은 연결 승인 대기 중입니다.')}
 writeJSON=function(key,value){const saved=localWriteBeforeCloud(key,value);if(saved&&!cloudApplying&&cloudKeyAllowed(key))markCloudDirty(key,value);return saved};
 window.FamilyLearningRepository.save=async function(key,value){writeJSON(key,value)};
 window.FamilyLearningRepository.sync=async function(){syncCloud()};
@@ -921,7 +921,13 @@ openMom=function(){motherBeforeCloud();if(FAMILY_CLOUD_URL)$('#mom .scope').text
 const cloudStudySave=document.createElement('button');cloudStudySave.className='btn light';cloudStudySave.textContent='학습기록 저장';cloudStudySave.onclick=()=>{persist();syncCloud(true)};cloudStudySave.disabled=!FAMILY_CLOUD_URL;document.querySelector('#study .toolbar').append(cloudStudySave);
 
 
-const cloudStudyStatus=document.createElement('div');cloudStudyStatus.id='cloudStudyStatus';cloudStudyStatus.className='small';cloudStudySave.after(cloudStudyStatus);cloudStatus(FAMILY_CLOUD_URL?'학습기록 저장을 누르면 온라인 백업됩니다.':'온라인 백업 연결 준비 중 · 기기 저장은 유지됩니다.');
+const cloudStudyStatus=document.createElement('div');cloudStudyStatus.id='cloudStudyStatus';cloudStudyStatus.className='small';cloudStudySave.after(cloudStudyStatus);cloudStatus(FAMILY_CLOUD_URL?'일괄채점·학습완료 시 온라인 자동 저장 · 저장 버튼으로도 백업할 수 있습니다.':'온라인 백업 연결 준비 중 · 기기 저장은 유지됩니다.');
+
+// Batch grading is a completed learning step, including a first score with retries.
+let cloudCompletionTimer=null;
+function saveCompletedStepOnline(){clearTimeout(cloudCompletionTimer);if(cloudBusy){cloudCompletionTimer=setTimeout(saveCompletedStepOnline,1000);return}syncCloud(true)}
+const gradeBeforeCloud=finishGrade;
+finishGrade=function(){const beforePhase=activeSet?.phase,beforeScore=activeSet?.initialScore;gradeBeforeCloud();if(role!=='mom'&&(beforePhase!==activeSet.phase||beforeScore!==activeSet.initialScore))saveCompletedStepOnline()};
 
 
 /* All children's math uses batch-graded choices, with fractional distractors. */
