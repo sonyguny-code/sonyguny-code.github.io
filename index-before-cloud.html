@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.10';
+const PORTAL_VERSION='2026.10.04.8';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -788,7 +788,6 @@ renderHome();
 
 
 
-
 /* Date charts use SVG so only the writing surface owns a canvas bitmap. */
 const enhancedCalendar=renderCalendar;
 const legacyAllRecords=allRecords;
@@ -830,9 +829,9 @@ dailySet=function(p,m,d=TODAY){const value=storedDailySet(p,m,d);if(d===TODAY){c
 let familyAudioPlayer=null,retainedUtterance=null;
 function audioNotice(i,text){let n=$('#audioNotice'+i);if(!n){n=document.createElement('div');n.className='small';n.id='audioNotice'+i;document.querySelector(`[data-problem="${i}"] .penTools`).after(n)}n.textContent=text;return n}
 function nativeSpeech(i){const p=currentProblems[i],notice=audioNotice(i,'음성을 준비하고 있습니다.');if(!window.speechSynthesis){notice.textContent='이 브라우저의 기기 음성을 사용할 수 없습니다.';return}const synth=window.speechSynthesis;synth.cancel();synth.resume();retainedUtterance=new SpeechSynthesisUtterance(p.speech);const u=retainedUtterance;u.lang=currentMode==='japanese'?'ja-JP':'en-US';u.rate=.85;const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith(u.lang.slice(0,2)));if(voice)u.voice=voice;u.onstart=()=>notice.textContent='문장을 듣고 있습니다.';u.onend=()=>notice.textContent='재생을 마쳤습니다. 버튼을 누르면 다시 들을 수 있습니다.';u.onerror=()=>notice.textContent='기기 음성을 재생하지 못했습니다. 소리 설정을 확인하거나 Safari/Chrome에서 다시 열어 주세요.';synth.speak(u)}
-document.addEventListener('click',e=>{const button=e.target.closest('[data-speak]');if(!button)return;e.preventDefault();e.stopImmediatePropagation();if(currentProfile==='dad'&&currentMode==='english')return;nativeSpeech(+button.dataset.speak)},{capture:true});
+document.addEventListener('click',e=>{const button=e.target.closest('[data-speak]');if(!button)return;e.preventDefault();e.stopImmediatePropagation();const i=+button.dataset.speak,p=currentProblems[i],recording=DAD_PHRASES.findIndex(x=>x[2]===p.speech);if(recording<0){nativeSpeech(i);return}window.speechSynthesis?.cancel();if(familyAudioPlayer){familyAudioPlayer.pause();familyAudioPlayer.remove()}const n=audioNotice(i,'문장 음성을 불러오고 있습니다.');familyAudioPlayer=document.createElement('audio');const player=familyAudioPlayer;player.controls=true;player.preload='none';player.style.cssText='display:block;width:100%;margin:10px 0';player.src=`./dad-en-${recording+1}.wav`;player.playbackRate=.9;n.after(player);player.onplaying=()=>n.textContent='문장 듣기 재생 중';player.onended=()=>n.textContent='재생 완료 · 다시 들으려면 ▶를 누르세요.';player.onerror=()=>{n.textContent='음성 파일을 불러오지 못해 기기 음성으로 다시 시도합니다.';nativeSpeech(i)};player.play().catch(()=>n.textContent='아래 ▶ 재생 버튼을 눌러 문장을 들어 주세요.');},{capture:true});
 const problemsWithLastStep=renderProblems;
-renderProblems=function(){problemsWithLastStep();if(currentProfile==='dad'&&currentMode==='english')document.querySelectorAll('[data-speak]').forEach(b=>b.remove());const last=document.querySelector('[data-problem="14"] .bottomNav button:last-child');if(last){last.disabled=false;last.removeAttribute('data-newjump');last.dataset.studyWrapUp='yes';last.textContent='학습 마무리 →'}};
+renderProblems=function(){problemsWithLastStep();const last=document.querySelector('[data-problem="14"] .bottomNav button:last-child');if(last){last.disabled=false;last.removeAttribute('data-newjump');last.dataset.studyWrapUp='yes';last.textContent='학습 마무리 →'}};
 document.addEventListener('click',e=>{if(!e.target.closest('[data-study-wrap-up]'))return;if(role==='mom'){openMom();return}tick();persist();$('#finishPanel').classList.add('show');$('#resultTime').textContent=fmt(session.elapsed);$('#resultScore').textContent=activeSet.initialScore===null?'채점 전':`${activeSet.initialScore}/15`;$('#resultRate').textContent=`${session.answers.filter(x=>String(x||'').trim()).length}/15 답안`;$('#wrongSummary').textContent='마지막 문제까지 왔습니다. 답안을 모두 작성했다면 위의 일괄채점 버튼으로 마무리하세요. 오늘 학습으로 돌아가도 답안·필기·시간은 보존됩니다.';$('#wrongOnly').style.display='none';$('#finishPanel').scrollIntoView({block:'start',behavior:'smooth'})});
 const moveWithAudio=goProblem;
 goProblem=function(i){if(familyAudioPlayer)familyAudioPlayer.pause();moveWithAudio(i)};
@@ -843,8 +842,6 @@ openMom=function(){momWithChildren();if(!$('#momChild option[value="dad"]')){con
 const homeWithSingleDad=renderHome;
 renderHome=function(){homeWithSingleDad();const card=$('#profiles [data-family-role="dad"]');if(card){const record=getDayRecord('dad'),badges=document.createElement('div');badges.className='todayState';badges.innerHTML=['english','japanese'].map(m=>`<span class="pill ${record[m]?.done?'done':''}">${m==='english'?'영어':'일본어'} ${record[m]?.done?'✓':'미완료'}</span>`).join('');card.append(badges)}};
 renderHome();
-
-
 
 
 const ELEMENTARY_WORDS=[['apple','사과'],['banana','바나나'],['orange','오렌지'],['grape','포도'],['water','물'],['milk','우유'],['bread','빵'],['rice','쌀·밥'],['egg','달걀'],['chicken','닭·닭고기'],['dog','개'],['cat','고양이'],['bird','새'],['fish','물고기'],['rabbit','토끼'],['horse','말'],['elephant','코끼리'],['tiger','호랑이'],['lion','사자'],['bear','곰'],['school','학교'],['teacher','선생님'],['student','학생'],['book','책'],['pencil','연필'],['desk','책상'],['chair','의자'],['bag','가방'],['ruler','자'],['eraser','지우개'],['mother','어머니'],['father','아버지'],['sister','여자 형제'],['brother','남자 형제'],['friend','친구'],['family','가족'],['happy','행복한'],['sad','슬픈'],['hungry','배고픈'],['tired','피곤한'],['big','큰'],['small','작은'],['long','긴'],['short','짧은'],['hot','뜨거운'],['cold','차가운'],['red','빨간색'],['blue','파란색'],['green','초록색'],['yellow','노란색'],['white','흰색'],['black','검은색'],['run','달리다'],['walk','걷다'],['read','읽다'],['write','쓰다'],['eat','먹다'],['drink','마시다'],['sleep','잠자다'],['play','놀다'],['morning','아침'],['afternoon','오후'],['evening','저녁'],['night','밤'],['today','오늘'],['tomorrow','내일'],['sun','해'],['moon','달'],['rain','비'],['snow','눈']];
@@ -862,14 +859,12 @@ renderHome();
 /* Compare all family members first; retain the full personal record screens. */
 const RECORD_PEOPLE=[{id:'yeju',name:'예주',color:'#4768e6'},{id:'yeyeon',name:'예연',color:'#d97706'},{id:'dad',name:'아빠',color:'#138a5b'}];
 let recordsView='overview';
-function familyDailyScores(){const result={},dates=new Set();for(const person of RECORD_PEOPLE){result[person.id]={};for(const [date,parts] of Object.entries(allRecords(person.id))){dates.add(date);const scored=modes(person.id).map(m=>parts[m]).filter(v=>v?.graded&&Number.isFinite(v.initialScore??v.score));if(scored.length)result[person.id][date]=scored.reduce((sum,v)=>sum+(v.initialScore??v.score),0)/scored.length/15*100}}for(const date of dates)for(const person of RECORD_PEOPLE)if(result[person.id][date]===undefined&&date<TODAY)result[person.id][date]=0;return result}
+function familyDailyScores(){const result={};for(const person of RECORD_PEOPLE){result[person.id]={};for(const [date,parts] of Object.entries(allRecords(person.id))){const scored=modes(person.id).map(m=>parts[m]).filter(v=>v?.graded&&Number.isFinite(v.initialScore??v.score));if(scored.length)result[person.id][date]=scored.reduce((sum,v)=>sum+(v.initialScore??v.score),0)/scored.length/15*100}}return result}
 function familyComparison(scores){const dates=[...new Set(RECORD_PEOPLE.flatMap(p=>Object.keys(scores[p.id])))].sort().slice(-31),w=780,h=260,pad=46,x=i=>pad+(w-2*pad)*(dates.length<2?.5:i/(dates.length-1)),y=value=>h-pad-(h-2*pad)*value/100;let svg=`<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="예주 예연 아빠 날짜별 최초 점수 비교" style="width:100%;display:block">`;svg+=[0,25,50,75,100].map(v=>`<line x1="${pad}" x2="${w-pad}" y1="${y(v)}" y2="${y(v)}" stroke="#dde3ec"/><text x="5" y="${y(v)+4}" fill="#667085" font-size="12">${v}%</text>`).join('');for(const p of RECORD_PEOPLE){let path='',previous=false;dates.forEach((d,i)=>{const value=scores[p.id][d];if(value===undefined){previous=false;return}path+=`${previous?'L':'M'}${x(i)},${y(value)} `;previous=true});svg+=`<path d="${path}" stroke="${p.color}" stroke-width="3" fill="none"/>`+dates.map((d,i)=>scores[p.id][d]===undefined?'':`<circle cx="${x(i)}" cy="${y(scores[p.id][d])}" r="5" fill="${p.color}"><title>${p.name} ${d}: ${scores[p.id][d].toFixed(1)}%</title></circle>`).join('')}svg+=dates.filter((_,i)=>i===0||i===dates.length-1||i%Math.max(1,Math.ceil(dates.length/6))===0).map(d=>`<text x="${x(dates.indexOf(d))}" y="${h-12}" text-anchor="middle" fill="#667085" font-size="12">${d.slice(5)}</text>`).join('');if(!dates.length)svg+=`<text x="${w/2}" y="${h/2}" text-anchor="middle" fill="#667085" font-size="16">첫 채점이 끝나면 세 사람의 점수가 여기에 표시됩니다.</text>`;svg+='</svg>';return svg+(dates.length?`<details><summary>일자별 점수 보기</summary><table style="width:100%;text-align:center;margin-top:12px"><thead><tr><th>날짜</th>${RECORD_PEOPLE.map(p=>`<th>${p.name}</th>`).join('')}</tr></thead><tbody>${dates.map(d=>`<tr><td>${d}</td>${RECORD_PEOPLE.map(p=>`<td>${scores[p.id][d]===undefined?'—':scores[p.id][d].toFixed(1)+'%'}</td>`).join('')}</tr>`).join('')}</tbody></table></details>`:'')}
 function setupRecordOverview(){if($('#familyScoreOverview'))return;const records=$('#records'),details=document.createElement('div');details.id='personalRecordDetails';[...records.children].filter(el=>el.classList.contains('recordCard')).forEach(el=>details.append(el));records.append(details);const overview=document.createElement('div');overview.id='familyScoreOverview';records.insertBefore(overview,details);$('#recordProfile').style.display='none'}
-function renderFamilyOverview(){setupRecordOverview();const scores=familyDailyScores(),box=$('#familyScoreOverview');box.innerHTML=`<section class="recordCard"><h2 style="margin-top:0">세 사람 점수 비교</h2><div class="small">현재 브라우저에 저장된 기록 · 최근 31개 학습일 · 하루 여러 과목의 최초 점수를 평균해 100점 기준으로 비교합니다. 지난 학습일에 채점 기록이 없는 사람은 0점으로 표시합니다. 오늘은 채점 전까지 진행 중으로 표시합니다.</div><div class="toolbar" aria-label="그래프 범례">${RECORD_PEOPLE.map(p=>`<span style="color:${p.color};font-weight:800">● ${p.name}</span>`).join('')}</div>${familyComparison(scores)}</section><section class="recordCard"><h3>개인별 일자 기록</h3><p class="small">이름을 누르면 날짜별 점수·풀이시간·문제·필기를 볼 수 있습니다.</p><div class="profileGrid" style="grid-template-columns:repeat(3,minmax(0,1fr))">${RECORD_PEOPLE.map(p=>`<button class="btn light" style="padding:20px 8px;font-size:19px;color:${p.color}" data-record-person="${p.id}">${p.name} →</button>`).join('')}</div></section>`;box.hidden=recordsView!=='overview';$('#personalRecordDetails').hidden=recordsView==='overview';$('#recordTitle').textContent=recordsView==='overview'?'가족 학습기록':`${PROFILES[$('#recordProfile').value].name} 일자별 학습기록`;$('#recordsBack').textContent=recordsView==='overview'?'← 돌아가기':'← 세 사람 점수 비교'}
+function renderFamilyOverview(){setupRecordOverview();const scores=familyDailyScores(),box=$('#familyScoreOverview');box.innerHTML=`<section class="recordCard"><h2 style="margin-top:0">세 사람 점수 비교</h2><div class="small">현재 브라우저에 저장된 기록 · 최근 31개 학습일 · 하루 여러 과목의 최초 점수를 평균해 100점 기준으로 비교합니다. 채점하지 않은 날은 점수로 계산하지 않습니다.</div><div class="toolbar" aria-label="그래프 범례">${RECORD_PEOPLE.map(p=>`<span style="color:${p.color};font-weight:800">● ${p.name}</span>`).join('')}</div>${familyComparison(scores)}</section><section class="recordCard"><h3>개인별 일자 기록</h3><p class="small">이름을 누르면 날짜별 점수·풀이시간·문제·필기를 볼 수 있습니다.</p><div class="profileGrid" style="grid-template-columns:repeat(3,minmax(0,1fr))">${RECORD_PEOPLE.map(p=>`<button class="btn light" style="padding:20px 8px;font-size:19px;color:${p.color}" data-record-person="${p.id}">${p.name} →</button>`).join('')}</div></section>`;box.hidden=recordsView!=='overview';$('#personalRecordDetails').hidden=recordsView==='overview';$('#recordTitle').textContent=recordsView==='overview'?'가족 학습기록':`${PROFILES[$('#recordProfile').value].name} 일자별 학습기록`;$('#recordsBack').textContent=recordsView==='overview'?'← 돌아가기':'← 세 사람 점수 비교'}
 const calendarBeforeFamilyOverview=renderCalendar;
 renderCalendar=function(){calendarBeforeFamilyOverview();renderFamilyOverview()};
-const calendarBeforeMissingDays=renderCalendar;
-renderCalendar=function(){calendarBeforeMissingDays();const person=$('#recordProfile').value,scores=familyDailyScores(),dates=[...new Set(RECORD_PEOPLE.flatMap(p=>Object.keys(allRecords(p.id))))].sort().slice(-31),all=allRecords(person),rows=dates.filter(date=>date<TODAY||all[date]).map(date=>({date,score:scores[person][date]??null,time:Object.values(all[date]||{}).reduce((sum,v)=>sum+(Number(v?.time)||0),0)/60000}));$('#dailyCharts').innerHTML='<h3>날짜별 학습 흐름</h3><div class="small">지난 학습일에 채점 기록이 없으면 0점입니다. 오늘 채점 전 기록은 진행 중으로 보존합니다.</div>'+chart(rows,'score','점수 (%)',RECORD_PEOPLE.find(p=>p.id===person).color,100)+chart(rows,'time','풀이시간 (분)','#138a5b',Math.max(10,...rows.map(r=>r.time)));const missing=dates.filter(date=>date<TODAY&&!all[date]);if(missing.length)$('#historyRows').insertAdjacentHTML('beforeend',missing.reverse().map(date=>`<div class="scope"><b>${date}</b><br>미학습 · 점수 0점 · 풀이시간 00:00</div>`).join(''))};
 const recordsBeforeFamilyOverview=openRecords;
 openRecords=function(profile=currentProfile||'yeju'){recordsView='overview';recordsBeforeFamilyOverview(profile);renderFamilyOverview()};
 function openPersonalRecords(profile,push=true){recordsView='personal';$('#recordProfile').value=profile;renderCalendar();window.scrollTo({top:0,behavior:'instant'});if(push&&!routeRestoring)history.pushState(routeData('records'),'','#records')}
@@ -881,77 +876,6 @@ routeData=function(id){const value=routeBeforeRecordOverview(id);if(id==='record
 const restoreBeforeRecordOverview=restoreRoute;
 restoreRoute=function(state){restoreBeforeRecordOverview(state);if(state?.screen==='records'&&state.recordsView==='personal')openPersonalRecords(state.recordPerson||'yeju',false)};
 
-
-
-/* Google Drive bridge: local-first, acknowledged writes, periodic shared reads. */
-const FAMILY_CLOUD_URL=''; // Filled after the owner approves and deploys the bridge.
-const cloudKeyAllowed=k=>/^familyLearning:v3:set:(yeju|yeyeon|dad):\d{4}-\d{2}-\d{2}:(fraction|review|english|japanese)$/.test(k)||/^familyLearning:v3:records:(yeju|yeyeon|dad)$/.test(k)||/^familyMathPortal:v1:(yeju|yeyeon|dad)$/.test(k)||k==='familyLearning:englishLesson';
-const localWriteBeforeCloud=writeJSON;
-let cloudApplying=false,cloudBusy=false,cloudLastSaved=null;
-const cloudUUID=()=>crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
-const cloudDirty=readJSON('familyLearning:cloud:dirty',{});
-let cloudDevice=readJSON('familyLearning:cloud:device',null);
-if(!cloudDevice){cloudDevice='device-'+cloudUUID();localWriteBeforeCloud('familyLearning:cloud:device',cloudDevice)}
-function cloudStatus(text){const el=$('#cloudStatus');if(el)el.textContent=text;const study=$('#cloudStudyStatus');if(study)study.textContent=text}
-function markCloudDirty(key,value){cloudDirty[key]={value:JSON.stringify(value),updatedAt:new Date().toISOString()};localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty);cloudStatus(FAMILY_CLOUD_URL?'기기에 저장됨 · 학습기록 저장을 누르면 온라인 백업됩니다.':'기기에 저장됨 · 온라인 백업은 연결 승인 대기 중입니다.')}
-writeJSON=function(key,value){const saved=localWriteBeforeCloud(key,value);if(saved&&!cloudApplying&&cloudKeyAllowed(key))markCloudDirty(key,value);return saved};
-window.FamilyLearningRepository.save=async function(key,value){writeJSON(key,value)};
-window.FamilyLearningRepository.sync=async function(){syncCloud()};
-function repaintCloudViews(){const screen=$('.screen.active')?.id;if(screen==='study')return;if(screen==='dashboard')openDashboard(currentProfile);else if(screen==='records')renderCalendar();else if(screen==='home')renderHome();else if(screen==='mom')openMom()}
-function cloudRead(){return new Promise((resolve,reject)=>{const callback='familyCloudResponse_'+cloudUUID().replace(/-/g,''),script=document.createElement('script');let timer;const cleanup=()=>{clearTimeout(timer);script.remove();delete window[callback]};window[callback]=data=>{cleanup();data?.ok?resolve(data):reject(Error(data?.error||'백업 응답 오류'))};script.onerror=()=>{cleanup();reject(Error('백업 연결 오류'))};timer=setTimeout(()=>{cleanup();reject(Error('백업 응답 지연'))},30000);script.src=FAMILY_CLOUD_URL+'?callback='+callback+'&device='+encodeURIComponent(cloudDevice)+'&t='+Date.now();document.head.append(script)})}
-async function syncCloud(upload=false){if(!FAMILY_CLOUD_URL||cloudBusy)return;if(!navigator.onLine){cloudStatus('인터넷 연결 없음 · 기기에 저장됨, 연결 후 저장 버튼을 눌러 주세요.');return}cloudBusy=true;const changes=upload===true?JSON.parse(JSON.stringify(cloudDirty)):{};if(upload===true)cloudStatus('학습기록을 온라인에 저장하는 중…');try{let result;if(Object.keys(changes).length){const request=cloudUUID(),controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),45000);try{await fetch(FAMILY_CLOUD_URL,{method:'POST',mode:'no-cors',credentials:'omit',signal:controller.signal,headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({device:cloudDevice,request,changes})})}finally{clearTimeout(timeout)}for(let i=0;i<3;i++){result=await cloudRead();if(result.ack===request)break;if(i===2)throw Error('저장 확인 실패')}if(result.ack!==request)throw Error('저장 확인 실패')}else result=await cloudRead();applyCloudResult(result,changes);if(upload===true&&!Object.keys(cloudDirty).length)cloudStatus('학습기록 온라인 저장 완료 ✓ · 다른 기기에서도 볼 수 있습니다.')}catch{cloudStatus('온라인 연결 지연 · 기기 저장 유지, 저장 버튼으로 재시도해 주세요.')}finally{cloudBusy=false}}
-function applyCloudResult(result,sent){let changed=false;cloudApplying=true;try{for(const [key,item] of Object.entries(result.storage||{})){if(!cloudKeyAllowed(key)||typeof item.value!=='string')continue;const dirty=cloudDirty[key],wasSent=sent[key];if(dirty&&(!wasSent||dirty.value!==wasSent.value))continue;
-  // An active solving screen keeps its live vectors/answers until it is left.
-  if($('.screen.active')?.id==='study'&&key===setKey(currentProfile,currentMode,activeDate)){if(wasSent&&dirty?.value===wasSent.value)delete cloudDirty[key];continue;}
-  if(localStorage.getItem(key)!==item.value){localStorage.setItem(key,item.value);changed=true;}
-  if(wasSent&&dirty?.value===wasSent.value)delete cloudDirty[key];
-}localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty)}finally{cloudApplying=false}if(changed)repaintCloudViews();cloudLastSaved=new Date();cloudStatus(Object.keys(cloudDirty).length?'기기에 저장됨 · 다음 온라인 백업 대기':'온라인 공유 기록 확인 완료 · '+cloudLastSaved.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));}
-const cloudBar=document.createElement('div');cloudBar.className='scope';cloudBar.innerHTML='<b>학습기록 백업</b><div class="small" id="cloudStatus"></div><button class="tool" id="cloudSyncNow">학습기록 저장</button>';$('#home .toolbar').after(cloudBar);$('#cloudSyncNow').onclick=()=>{persist();syncCloud(true)};
-if(FAMILY_CLOUD_URL){
-  // First connection uploads every pre-existing record without deleting local data.
-  if(!readJSON('familyLearning:cloud:imported',false)){for(const key of Object.keys(localStorage).filter(cloudKeyAllowed)){if(!cloudDirty[key])cloudDirty[key]={value:localStorage.getItem(key),updatedAt:readJSON(key,{})?.updatedAt||new Date().toISOString()}}localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty);localWriteBeforeCloud('familyLearning:cloud:imported',true)}
-  cloudStatus('온라인 백업 연결 중 · 기기 기록 보존');syncCloud();setInterval(()=>{if(!document.hidden)syncCloud()},30000);window.addEventListener('online',syncCloud);document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncCloud()});
-}else{cloudStatus('온라인 백업 연결 준비 중 · 현재는 기기에 저장됩니다.');$('#cloudSyncNow').disabled=true}
-const overviewBeforeCloud=renderFamilyOverview;
-renderFamilyOverview=function(){overviewBeforeCloud();if(FAMILY_CLOUD_URL){const note=$('#familyScoreOverview .small');if(note)note.textContent=note.textContent.replace('현재 브라우저에 저장된 기록','온라인 공유 기록 · 연결 실패 시 기기에 저장된 기록')}};
-const motherBeforeCloud=openMom;
-openMom=function(){motherBeforeCloud();if(FAMILY_CLOUD_URL)$('#mom .scope').textContent='온라인으로 공유된 같은 문제·정답·풀이를 봅니다. 연결이 끊겨도 기기에 저장된 기록은 유지됩니다.'};
-
-const cloudStudySave=document.createElement('button');cloudStudySave.className='btn light';cloudStudySave.textContent='학습기록 저장';cloudStudySave.onclick=()=>{persist();syncCloud(true)};cloudStudySave.disabled=!FAMILY_CLOUD_URL;document.querySelector('#study .toolbar').append(cloudStudySave);
-
-
-const cloudStudyStatus=document.createElement('div');cloudStudyStatus.id='cloudStudyStatus';cloudStudyStatus.className='small';cloudStudySave.after(cloudStudyStatus);cloudStatus(FAMILY_CLOUD_URL?'학습기록 저장을 누르면 온라인 백업됩니다.':'온라인 백업 연결 준비 중 · 기기 저장은 유지됩니다.');
-
-
-/* All children's math uses batch-graded choices, with fractional distractors. */
-function mathFractionText(value){if(!Number.isFinite(value))return String(value);if(Number.isInteger(value))return String(value);for(let d=2;d<=10000;d++){const n=Math.round(value*d);if(Math.abs(n/d-value)<1e-10){const g=gcd(Math.abs(n),d);return `${n/g}/${d/g}`}}return String(value)}
-function mathChoiceOptions(problem,fractionMode,index){
-  const numeric=numberAnswer(problem.answer),answer=numeric!==null&&fractionMode?mathFractionText(numeric):String(problem.answer),options=[answer];
-  const add=value=>{value=String(value);if(!options.some(o=>isCorrect(o,value)))options.push(value)};
-  if(numeric!==null){
-    if(fractionMode){const match=mathFractionText(numeric).match(/^(-?\d+)\/(\d+)$/),den=match?+match[2]:4,num=match?+match[1]:numeric*den;for(const delta of [1,-1,2,-2,3,4]){if(num+delta>=0)add(mathFractionText((num+delta)/den))}}
-    else for(const delta of [1,-1,2,-2,3])add(numeric+delta);
-  }else if(problem.topic==='통분'){
-    const match=answer.match(/^(\d+)\/(\d+),\s*(\d+)\/(\d+)$/);if(match){const [,a,b,c,d]=match;add(`${+a+1}/${b}, ${c}/${d}`);add(`${a}/${b}, ${+c+1}/${d}`);add(`${a}/${+b+1}, ${c}/${+d+1}`)}
-  }else if(/[①②③]/.test(answer)){
-    const chunks=answer.match(/[①②③][^①②③]+/g);if(chunks?.length===3){for(const [a,b] of [[0,1],[0,2],[1,2]]){const copy=[...chunks],bodyA=copy[a].slice(1),bodyB=copy[b].slice(1);copy[a]=copy[a][0]+bodyB;copy[b]=copy[b][0]+bodyA;add(copy.join(' '))}}
-  }else if(/^(평행|수직|꼬인 위치|한 점에서 만남)$/.test(answer)){
-    for(const value of ['평행','수직','꼬인 위치','한 점에서 만남'])add(value);
-  }
-  if(options.length<4&&/-?\d+/.test(answer)){for(const delta of [1,-1,2,3])add(answer.replace(/-?\d+/,value=>String(+value+delta)))}
-  for(const value of ['주어진 조건으로는 결정할 수 없다.','조건에 맞는 답이 없다.','문제의 모든 값이 0이다.','위 조건은 서로 모순이다.'])if(options.length<4)add(value);
-  const chosen=options.slice(0,4),random=RNG(hash(currentProfile+'|'+currentMode+'|'+activeDate+'|'+index+'|math-choices'));
-  for(let i=chosen.length-1;i>0;i--){const j=ri(random,0,i);[chosen[i],chosen[j]]=[chosen[j],chosen[i]]}
-  return {answer,options:chosen};
-}
-function prepareMathChoices(set){if(!['yeju','yeyeon'].includes(set.profile)||!['fraction','review'].includes(set.mode)||set.mathChoiceFormat===2)return set;
-  if(!set.previousQuestionFormats)set.previousQuestionFormats=[{version:set.version,problems:JSON.parse(JSON.stringify(set.problems)),answers:[...set.answers]}];
-  set.problems=set.problems.map((original,i)=>{const p={...original},fractionMode=set.mode==='fraction'||p.topic.includes('분수')||p.prompt.includes('class="fraction"'),choice=mathChoiceOptions(p,fractionMode,i);p.answer=choice.answer;p.options=choice.options;p.manual=false;p.concept=p.concept||p.hint||p.topic;if(fractionMode&&/\d+\.\d+/.test(p.explain))p.explain=p.explain.replace(/\d+\.\d+/g,value=>mathFractionText(+value));const saved=set.answers[i];if(saved&&isCorrect(saved,choice.answer))set.answers[i]=choice.answer;return p});set.mathChoiceFormat=2;return set;
-}
-const dailySetBeforeMathChoices=dailySet;
-dailySet=function(p,m,d=TODAY){const set=dailySetBeforeMathChoices(p,m,d);prepareMathChoices(set);writeJSON(setKey(p,m,d),set);return set};
-const dashboardBeforeMathChoices=openDashboard;
-openDashboard=function(p){dashboardBeforeMathChoices(p);if(['yeju','yeyeon'].includes(p))for(const mode of ['fraction','review']){const card=$(`[data-start="${mode}"]`)?.closest('.studyCard');if(card){const text=card.querySelector('p');text.textContent+=' · 모두 객관식 · 전체 풀이 후 채점'}}};
 
 </script>
 </body>
