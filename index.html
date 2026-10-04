@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.4';
+const PORTAL_VERSION='2026.10.04.7';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -784,6 +784,9 @@ const style=document.createElement('style');style.textContent='.choices{display:
 renderHome();
 
 
+
+
+
 /* Date charts use SVG so only the writing surface owns a canvas bitmap. */
 const enhancedCalendar=renderCalendar;
 const legacyAllRecords=allRecords;
@@ -820,6 +823,37 @@ renderHome=function(){familyHome();$('#profiles [data-profile="dad"]')?.remove()
 renderHome();
 const storedDailySet=dailySet;
 dailySet=function(p,m,d=TODAY){const value=storedDailySet(p,m,d);if(d===TODAY){const beforeP=currentProfile,beforeM=currentMode;currentProfile=p;currentMode=m;rememberProblemSet(value.problems);currentProfile=beforeP;currentMode=beforeM}return value};
+
+/* Explicit recording playback also works in browsers without a speech engine. */
+let familyAudioPlayer=null,retainedUtterance=null;
+function audioNotice(i,text){let n=$('#audioNotice'+i);if(!n){n=document.createElement('div');n.className='small';n.id='audioNotice'+i;document.querySelector(`[data-problem="${i}"] .penTools`).after(n)}n.textContent=text;return n}
+function nativeSpeech(i){const p=currentProblems[i],notice=audioNotice(i,'음성을 준비하고 있습니다.');if(!window.speechSynthesis){notice.textContent='이 브라우저의 기기 음성을 사용할 수 없습니다.';return}const synth=window.speechSynthesis;synth.cancel();synth.resume();retainedUtterance=new SpeechSynthesisUtterance(p.speech);const u=retainedUtterance;u.lang=currentMode==='japanese'?'ja-JP':'en-US';u.rate=.85;const voice=synth.getVoices().find(v=>v.lang.toLowerCase().startsWith(u.lang.slice(0,2)));if(voice)u.voice=voice;u.onstart=()=>notice.textContent='문장을 듣고 있습니다.';u.onend=()=>notice.textContent='재생을 마쳤습니다. 버튼을 누르면 다시 들을 수 있습니다.';u.onerror=()=>notice.textContent='기기 음성을 재생하지 못했습니다. 소리 설정을 확인하거나 Safari/Chrome에서 다시 열어 주세요.';synth.speak(u)}
+document.addEventListener('click',e=>{const button=e.target.closest('[data-speak]');if(!button)return;e.preventDefault();e.stopImmediatePropagation();const i=+button.dataset.speak,p=currentProblems[i],recording=DAD_PHRASES.findIndex(x=>x[2]===p.speech);if(recording<0){nativeSpeech(i);return}window.speechSynthesis?.cancel();if(familyAudioPlayer){familyAudioPlayer.pause();familyAudioPlayer.remove()}const n=audioNotice(i,'문장 음성을 불러오고 있습니다.');familyAudioPlayer=document.createElement('audio');const player=familyAudioPlayer;player.controls=true;player.preload='none';player.style.cssText='display:block;width:100%;margin:10px 0';player.src=`./dad-en-${recording+1}.wav`;player.playbackRate=.9;n.after(player);player.onplaying=()=>n.textContent='문장 듣기 재생 중';player.onended=()=>n.textContent='재생 완료 · 다시 들으려면 ▶를 누르세요.';player.onerror=()=>{n.textContent='음성 파일을 불러오지 못해 기기 음성으로 다시 시도합니다.';nativeSpeech(i)};player.play().catch(()=>n.textContent='아래 ▶ 재생 버튼을 눌러 문장을 들어 주세요.');},{capture:true});
+const problemsWithLastStep=renderProblems;
+renderProblems=function(){problemsWithLastStep();const last=document.querySelector('[data-problem="14"] .bottomNav button:last-child');if(last){last.disabled=false;last.removeAttribute('data-newjump');last.dataset.studyWrapUp='yes';last.textContent='학습 마무리 →'}};
+document.addEventListener('click',e=>{if(!e.target.closest('[data-study-wrap-up]'))return;if(role==='mom'){openMom();return}tick();persist();$('#finishPanel').classList.add('show');$('#resultTime').textContent=fmt(session.elapsed);$('#resultScore').textContent=activeSet.initialScore===null?'채점 전':`${activeSet.initialScore}/15`;$('#resultRate').textContent=`${session.answers.filter(x=>String(x||'').trim()).length}/15 답안`;$('#wrongSummary').textContent='마지막 문제까지 왔습니다. 답안을 모두 작성했다면 위의 일괄채점 버튼으로 마무리하세요. 오늘 학습으로 돌아가도 답안·필기·시간은 보존됩니다.';$('#wrongOnly').style.display='none';$('#finishPanel').scrollIntoView({block:'start',behavior:'smooth'})});
+const moveWithAudio=goProblem;
+goProblem=function(i){if(familyAudioPlayer)familyAudioPlayer.pause();moveWithAudio(i)};
+const openWithAudio=openStudy;
+openStudy=function(m){if(familyAudioPlayer){familyAudioPlayer.pause();familyAudioPlayer.remove();familyAudioPlayer=null}$('#wrongOnly').style.display='';openWithAudio(m)};
+const momWithChildren=openMom;
+openMom=function(){momWithChildren();if(!$('#momChild option[value="dad"]')){const opt=document.createElement('option');opt.value='dad';opt.textContent='아빠';$('#momChild').append(opt)}$('#mom .hero p').textContent='예주·예연·아빠와 동일한 오늘의 문제와 문장, 정답·풀이·핵심개념을 바로 확인합니다.';$('#momChild').onchange()};
+const homeWithSingleDad=renderHome;
+renderHome=function(){homeWithSingleDad();const card=$('#profiles [data-family-role="dad"]');if(card){const record=getDayRecord('dad'),badges=document.createElement('div');badges.className='todayState';badges.innerHTML=['english','japanese'].map(m=>`<span class="pill ${record[m]?.done?'done':''}">${m==='english'?'영어':'일본어'} ${record[m]?.done?'✓':'미완료'}</span>`).join('');card.append(badges)}};
+renderHome();
+
+
+const ELEMENTARY_WORDS=[['apple','사과'],['banana','바나나'],['orange','오렌지'],['grape','포도'],['water','물'],['milk','우유'],['bread','빵'],['rice','쌀·밥'],['egg','달걀'],['chicken','닭·닭고기'],['dog','개'],['cat','고양이'],['bird','새'],['fish','물고기'],['rabbit','토끼'],['horse','말'],['elephant','코끼리'],['tiger','호랑이'],['lion','사자'],['bear','곰'],['school','학교'],['teacher','선생님'],['student','학생'],['book','책'],['pencil','연필'],['desk','책상'],['chair','의자'],['bag','가방'],['ruler','자'],['eraser','지우개'],['mother','어머니'],['father','아버지'],['sister','여자 형제'],['brother','남자 형제'],['friend','친구'],['family','가족'],['happy','행복한'],['sad','슬픈'],['hungry','배고픈'],['tired','피곤한'],['big','큰'],['small','작은'],['long','긴'],['short','짧은'],['hot','뜨거운'],['cold','차가운'],['red','빨간색'],['blue','파란색'],['green','초록색'],['yellow','노란색'],['white','흰색'],['black','검은색'],['run','달리다'],['walk','걷다'],['read','읽다'],['write','쓰다'],['eat','먹다'],['drink','마시다'],['sleep','잠자다'],['play','놀다'],['morning','아침'],['afternoon','오후'],['evening','저녁'],['night','밤'],['today','오늘'],['tomorrow','내일'],['sun','해'],['moon','달'],['rain','비'],['snow','눈']];
+modes=function(p){return p==='dad'?['english','japanese']:['fraction','review','english']};
+const dadLanguageGenerator=makeDad;
+makeDad=function(mode){if(currentProfile!=='yeyeon'||mode!=='english')return dadLanguageGenerator(mode);const r=rngFor('elementary-vocabulary'),pool=[...ELEMENTARY_WORDS];for(let i=pool.length-1;i>0;i--){const j=ri(r,0,i);[pool[i],pool[j]]=[pool[j],pool[i]]}return pool.slice(0,15).map(([word,meaning],i)=>{const p=Q('초등 영어 단어',`'${word}'의 뜻을 고르세요.`,meaning,`${word}: ${meaning}. 단어를 소리 내어 읽고 뜻을 떠올려 보세요.`);p.options=[meaning,...pool.slice(15+i*3,18+i*3).map(x=>x[1])];p.concept='영어 단어와 우리말 뜻을 연결하고 틀린 단어를 다시 기억합니다.';return p})};
+const dashboardWithVocabulary=openDashboard;
+openDashboard=function(p){dashboardWithVocabulary(p);if(p==='yeyeon'){const englishButton=$('[data-start="english"]');if(englishButton)englishButton.closest('.studyCard').querySelector('p').textContent='초등 수준의 단어 뜻 15문제 · 전체 풀이 후 채점 · 오답 단어 다시 풀기'}};
+const familyHomeWithVocabulary=renderHome;
+renderHome=function(){familyHomeWithVocabulary();for(const p of ['yeju','yeyeon']){const card=$(`[data-profile="${p}"]`);if(!card)continue;const r=getDayRecord(p);card.querySelectorAll('.pill').forEach(b=>{b.textContent=b.textContent.replace('누적','수학')});const badge=document.createElement('span');badge.className='pill'+(r.english?.done?' done':'');badge.textContent='영어 '+(r.english?.done?'✓':'미완료');card.querySelector('.todayState').append(badge)}};
+const recordsWithVocabulary=renderCalendar;
+renderCalendar=function(){recordsWithVocabulary();$$('#calendar .mark').forEach(el=>el.textContent=el.textContent.replace('누적','수학'))};
+renderHome();
 
 </script>
 </body>
