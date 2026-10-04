@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.14';
+const PORTAL_VERSION='2026.10.04.15';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -886,7 +886,7 @@ restoreRoute=function(state){restoreBeforeRecordOverview(state);if(state?.screen
 /* Supabase bridge: local-first, acknowledged writes, periodic shared reads. */
 const FAMILY_CLOUD_URL='https://ukuuyhwuwarznamouvgt.supabase.co/functions/v1/family-learning';
 const FAMILY_CLOUD_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVrdXV5aHd1d2Fyem5hbW91dmd0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMDQ0NjksImV4cCI6MjEwNjY4MDQ2OX0.agRcsZtLnRMeYVuP113uwbVeiGiIjSulj52DrB-8FOU';
-const cloudKeyAllowed=k=>/^familyLearning:v3:set:(yeju|yeyeon|dad):\d{4}-\d{2}-\d{2}:(fraction|review|english|japanese)$/.test(k)||/^familyLearning:v3:records:(yeju|yeyeon|dad)$/.test(k)||/^familyMathPortal:v1:(yeju|yeyeon|dad)$/.test(k)||k==='familyLearning:englishLesson';
+let cloudKeyAllowed=k=>/^familyLearning:v3:set:(yeju|yeyeon|dad):\d{4}-\d{2}-\d{2}:(fraction|review|english|japanese)$/.test(k)||/^familyLearning:v3:records:(yeju|yeyeon|dad)$/.test(k)||/^familyMathPortal:v1:(yeju|yeyeon|dad)$/.test(k)||k==='familyLearning:englishLesson';
 const localWriteBeforeCloud=writeJSON;
 let cloudApplying=false,cloudBusy=false,cloudLastSaved=null;
 const cloudUUID=()=>crypto.randomUUID?crypto.randomUUID():Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');
@@ -894,13 +894,13 @@ const cloudDirty=readJSON('familyLearning:cloud:dirty',{});
 let cloudDevice=readJSON('familyLearning:cloud:device',null);
 if(!cloudDevice){cloudDevice='device-'+cloudUUID();localWriteBeforeCloud('familyLearning:cloud:device',cloudDevice)}
 function cloudStatus(text){const el=$('#cloudStatus');if(el)el.textContent=text;const study=$('#cloudStudyStatus');if(study)study.textContent=text}
-function markCloudDirty(key,value){cloudDirty[key]={value:JSON.stringify(value),updatedAt:new Date().toISOString()};localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty);cloudStatus(FAMILY_CLOUD_URL?'기기에 저장됨 · 일괄채점·학습완료 시 온라인 자동 저장 · 저장 버튼으로도 백업할 수 있습니다.':'기기에 저장됨 · 온라인 백업은 연결 승인 대기 중입니다.')}
+function markCloudDirty(key,value){cloudDirty[key]={value:JSON.stringify(value),updatedAt:new Date().toISOString()};localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty);cloudStatus(FAMILY_CLOUD_URL?'기기에 저장됨 · 기기에 저장됨 · 온라인 자동 백업 중입니다.':'기기에 저장됨 · 온라인 백업은 연결 승인 대기 중입니다.')}
 writeJSON=function(key,value){const saved=localWriteBeforeCloud(key,value);if(saved&&!cloudApplying&&cloudKeyAllowed(key))markCloudDirty(key,value);return saved};
 window.FamilyLearningRepository.save=async function(key,value){writeJSON(key,value)};
 window.FamilyLearningRepository.sync=async function(){syncCloud()};
 function repaintCloudViews(){const screen=$('.screen.active')?.id;if(screen==='study')return;if(screen==='dashboard')openDashboard(currentProfile);else if(screen==='records')renderCalendar();else if(screen==='home')renderHome();else if(screen==='mom')openMom()}
 async function cloudRequest(payload){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);try{const response=await fetch(FAMILY_CLOUD_URL,{method:payload?'POST':'GET',credentials:'omit',signal:controller.signal,headers:{apikey:FAMILY_CLOUD_KEY,Authorization:'Bearer '+FAMILY_CLOUD_KEY,'Content-Type':'application/json'},body:payload?JSON.stringify(payload):undefined});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'백업 연결 오류');return result}finally{clearTimeout(timer)}}
-async function syncCloud(upload=false){if(!FAMILY_CLOUD_URL||cloudBusy)return;if(!navigator.onLine){cloudStatus('인터넷 연결 없음 · 기기에 저장됨, 연결 후 저장 버튼을 눌러 주세요.');return}cloudBusy=true;const changes=upload===true?JSON.parse(JSON.stringify(cloudDirty)):{};if(upload===true)cloudStatus('학습기록을 온라인에 저장하는 중…');try{const request=cloudUUID(),hasChanges=Object.keys(changes).length>0;const result=await cloudRequest(hasChanges?{device:cloudDevice,request,changes}:null);if(hasChanges&&result.ack!==request)throw Error('저장 확인 실패');applyCloudResult(result,changes);if(upload===true&&!Object.keys(cloudDirty).length)cloudStatus('학습기록 온라인 저장 완료 ✓ · 다른 기기에서도 볼 수 있습니다.')}catch{cloudStatus('온라인 연결 지연 · 기기 저장 유지, 저장 버튼으로 재시도해 주세요.')}finally{cloudBusy=false}}
+async function syncCloud(upload=false){if(!FAMILY_CLOUD_URL||cloudBusy)return;if(!navigator.onLine){cloudStatus('인터넷 연결 없음 · 기기 기록 보존 · 연결되면 자동 백업됩니다.');return}cloudBusy=true;const changes=upload===true?JSON.parse(JSON.stringify(cloudDirty)):{};if(upload===true)cloudStatus('학습기록을 온라인에 저장하는 중…');try{const request=cloudUUID(),hasChanges=Object.keys(changes).length>0;const result=await cloudRequest(hasChanges?{device:cloudDevice,request,changes}:null);if(hasChanges&&result.ack!==request)throw Error('저장 확인 실패');applyCloudResult(result,changes);if(upload===true&&!Object.keys(cloudDirty).length)cloudStatus('학습기록 온라인 저장 완료 ✓ · 다른 기기에서도 볼 수 있습니다.')}catch{cloudStatus('온라인 연결 지연 · 기기 기록 보존 · 자동 재시도합니다.')}finally{cloudBusy=false}}
 function applyCloudResult(result,sent){let changed=false;cloudApplying=true;try{for(const [key,item] of Object.entries(result.storage||{})){if(!cloudKeyAllowed(key)||typeof item.value!=='string')continue;const dirty=cloudDirty[key],wasSent=sent[key];if(dirty&&(!wasSent||dirty.value!==wasSent.value))continue;
   // An active solving screen keeps its live vectors/answers until it is left.
   if($('.screen.active')?.id==='study'&&key===setKey(currentProfile,currentMode,activeDate)){if(wasSent&&dirty?.value===wasSent.value)delete cloudDirty[key];continue;}
@@ -921,13 +921,14 @@ openMom=function(){motherBeforeCloud();if(FAMILY_CLOUD_URL)$('#mom .scope').text
 const cloudStudySave=document.createElement('button');cloudStudySave.className='btn light';cloudStudySave.textContent='학습기록 저장';cloudStudySave.onclick=()=>{persist();syncCloud(true)};cloudStudySave.disabled=!FAMILY_CLOUD_URL;document.querySelector('#study .toolbar').append(cloudStudySave);
 
 
-const cloudStudyStatus=document.createElement('div');cloudStudyStatus.id='cloudStudyStatus';cloudStudyStatus.className='small';cloudStudySave.after(cloudStudyStatus);cloudStatus(FAMILY_CLOUD_URL?'일괄채점·학습완료 시 온라인 자동 저장 · 저장 버튼으로도 백업할 수 있습니다.':'온라인 백업 연결 준비 중 · 기기 저장은 유지됩니다.');
+const cloudStudyStatus=document.createElement('div');cloudStudyStatus.id='cloudStudyStatus';cloudStudyStatus.className='small';cloudStudySave.after(cloudStudyStatus);cloudStatus(FAMILY_CLOUD_URL?'기기에 저장됨 · 온라인 자동 백업 중입니다.':'온라인 백업 연결 준비 중 · 기기 저장은 유지됩니다.');
 
 // Batch grading is a completed learning step, including a first score with retries.
 let cloudCompletionTimer=null;
 function saveCompletedStepOnline(){clearTimeout(cloudCompletionTimer);if(cloudBusy){cloudCompletionTimer=setTimeout(saveCompletedStepOnline,1000);return}syncCloud(true)}
 const gradeBeforeCloud=finishGrade;
 finishGrade=function(){const beforePhase=activeSet?.phase,beforeScore=activeSet?.initialScore;gradeBeforeCloud();if(role!=='mom'&&(beforePhase!==activeSet.phase||beforeScore!==activeSet.initialScore))saveCompletedStepOnline()};
+
 
 
 /* All children's math uses batch-graded choices, with fractional distractors. */
@@ -953,7 +954,7 @@ function mathChoiceOptions(problem,fractionMode,index){
 }
 function prepareMathChoices(set){if(!['yeju','yeyeon'].includes(set.profile)||!['fraction','review'].includes(set.mode)||set.mathChoiceFormat===2)return set;
   if(!set.previousQuestionFormats)set.previousQuestionFormats=[{version:set.version,problems:JSON.parse(JSON.stringify(set.problems)),answers:[...set.answers]}];
-  set.problems=set.problems.map((original,i)=>{const p={...original},fractionMode=set.mode==='fraction'||p.topic.includes('분수')||p.prompt.includes('class="fraction"'),choice=mathChoiceOptions(p,fractionMode,i);p.answer=choice.answer;p.options=choice.options;p.manual=false;p.concept=p.concept||p.hint||p.topic;if(fractionMode&&/\d+\.\d+/.test(p.explain))p.explain=p.explain.replace(/\d+\.\d+/g,value=>mathFractionText(+value));const saved=set.answers[i];if(saved&&isCorrect(saved,choice.answer))set.answers[i]=choice.answer;return p});set.mathChoiceFormat=2;return set;
+  set.problems=set.problems.map((original,i)=>{const p={...original},fractionMode=set.mode==='fraction'||(set.profile==='yeyeon'&&numberAnswer(p.answer)!==null&&!Number.isInteger(numberAnswer(p.answer))&&!p.topic.includes('소수'))||p.topic.includes('분수')||p.prompt.includes('class="fraction"'),choice=mathChoiceOptions(p,fractionMode,i);p.answer=choice.answer;p.options=choice.options;p.manual=false;p.concept=p.concept||p.hint||p.topic;if(fractionMode&&/\d+\.\d+/.test(p.explain))p.explain=p.explain.replace(/\d+\.\d+/g,value=>mathFractionText(+value));const saved=set.answers[i];if(saved&&isCorrect(saved,choice.answer))set.answers[i]=choice.answer;return p});set.mathChoiceFormat=2;return set;
 }
 const dailySetBeforeMathChoices=dailySet;
 dailySet=function(p,m,d=TODAY){const set=dailySetBeforeMathChoices(p,m,d);prepareMathChoices(set);writeJSON(setKey(p,m,d),set);return set};
@@ -1031,6 +1032,37 @@ window.addEventListener('online',()=>syncCloud(true));
 document.addEventListener('visibilitychange',()=>{if(document.hidden)syncCloud(true);else if(Object.keys(cloudDirty).length)syncCloud(true)});
 setTimeout(()=>syncCloud(true),1000);
 cloudStatus('학습기록 자동 저장 · 문제·점수·필기는 온라인으로 공유됩니다.');
+
+function readableMath(text){const superscript={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};return text.replace(/\^(-?\d+)/g,(_,exponent)=>[...exponent].map(c=>superscript[c]).join('')).replace(/([+−\-×÷])\s*([+−-]\s*\d+(?:\/\d+)?)/g,(_,operator,number)=>operator+' ('+number.replace(/-/g,'−')+')')}
+const problemsBeforeReadableMath=renderProblems;
+renderProblems=function(){problemsBeforeReadableMath();if(!['fraction','review'].includes(currentMode))return;for(const element of $$('#problemArea .question,#problemArea .choices,#problemArea .answer')){const walker=document.createTreeWalker(element,NodeFilter.SHOW_TEXT);while(walker.nextNode()){const text=walker.currentNode;text.textContent=readableMath(text.textContent)}}};
+
+const persistBeforeProfileGuard=persist;
+persist=function(){if(!activeSet||role==='mom'||activeSet.profile!==currentProfile||activeSet.mode!==currentMode||activeSet.date!==activeDate)return;persistBeforeProfileGuard()};
+// Retain misplaced originals separately; never treat another person's answers as work.
+for(const key of Object.keys(localStorage)){const match=key.match(/^familyLearning:v3:set:(yeju|yeyeon|dad):(\d{4}-\d{2}-\d{2}):(fraction|review|english|japanese)$/);if(!match)continue;const saved=readJSON(key,null);if(!saved||saved.profile===match[1]&&saved.mode===match[3]&&saved.date===match[2])continue;localWriteBeforeCloud('familyLearning:preserved-misattributed:'+key,saved);localStorage.removeItem(key);delete cloudDirty[key];const recordKey='familyLearning:v3:records:'+match[1],records=readJSON(recordKey,{});if(records[match[2]]?.[match[3]]){localWriteBeforeCloud('familyLearning:preserved-misattributed:'+recordKey+':'+match[2]+':'+match[3],records[match[2]][match[3]]);delete records[match[2]][match[3]];writeJSON(recordKey,records)}}
+localWriteBeforeCloud('familyLearning:cloud:dirty',cloudDirty);
+renderHome();
+
+const dailySetBeforeSharedFractions=dailySet;
+dailySet=function(profile,mode,date=TODAY){
+  if(mode!=='fraction'||!['yeju','yeyeon'].includes(profile)||readJSON(setKey(profile,mode,date),null))return dailySetBeforeSharedFractions(profile,mode,date);
+  const other=profile==='yeju'?'yeyeon':'yeju';
+  const shared=readJSON(setKey(other,mode,date),null)||dailySetBeforeSharedFractions('yeju',mode,date);
+  if(profile==='yeju'&&shared.profile==='yeju')return shared;
+  const value={schema:3,version:PORTAL_VERSION,date,profile,mode,problems:JSON.parse(JSON.stringify(shared.problems)),answers:Array(15).fill(''),grades:Array(15).fill(null),strokes:[],phase:'initial',initialScore:null,attempts:[],elapsed:0,index:0,choicesShuffled:true,mathChoiceFormat:2};
+  writeJSON(setKey(profile,mode,date),value);return value;
+};
+
+// Existing device drafts remain intact and are included in automatic cloud backup.
+const cloudKeyAllowedBeforeInk=cloudKeyAllowed;
+cloudKeyAllowed=function(key){return cloudKeyAllowedBeforeInk(key)||/^familyMathDrawingDraft:v2:(yeju|yeyeon|dad):\d{4}-\d{2}-\d{2}:(fraction|review|english|japanese)$/.test(key)};
+draftKey=function(){return `familyMathDrawingDraft:v2:${activeSet?.profile||currentProfile}:${activeSet?.date||activeDate}:${activeSet?.mode||currentMode}`};
+const saveDrawingBeforeSharedInk=saveDrawingDraft;
+saveDrawingDraft=function(){if(role==='mom')return;saveDrawingBeforeSharedInk();const draft=readJSON(draftKey(),null);if(draft)writeJSON(draftKey(),draft)};
+for(const key of Object.keys(localStorage)){if(!key.startsWith('familyMathDrawingDraft:v2:')||!cloudKeyAllowed(key))continue;const draft=readJSON(key,null);if(draft?.strokes?.some(page=>page?.length))markCloudDirty(key,draft)}
+const initCanvasesBeforeSharedInk=initCanvases;
+initCanvases=function(){const draft=readJSON(draftKey(),null);if(draft?.strokes){session.draftStrokes=Array.from({length:15},(_,i)=>session.draftStrokes?.[i]?.length?session.draftStrokes[i]:draft.strokes[i]||[])}initCanvasesBeforeSharedInk()};
 
 </script>
 </body>
