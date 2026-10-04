@@ -815,6 +815,11 @@ const calendarWithCharts=renderCalendar;
 renderCalendar=function(){calendarWithCharts();const p=$('#recordProfile').value;$('#records .legend').textContent='과목별 완료 표시 · 첫 점수와 풀이시간은 아래 기록과 그래프에서 확인합니다.';for(const cell of $$('#calendar .daycell:not(.blank)')){const day=Number(cell.querySelector('.daynum')?.textContent);if(!day)continue;const d=`${recordMonth.getFullYear()}-${String(recordMonth.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;cell.querySelector('.miniMarks').innerHTML=modes(p).map(m=>{const v=allRecords(p)[d]?.[m];return `<span class="mark ${v?.done?'done':''}">${{fraction:'분수',review:'누적',english:'영어',japanese:'일본어'}[m]} ${v?.done?'✓':'-'}</span>`}).join('')}};
 const recordsWithLegacyBackup=renderCalendar;
 renderCalendar=function(){recordsWithLegacyBackup();const p=$('#recordProfile').value;$('#historyRows').querySelectorAll('.scope').forEach(el=>{const d=el.querySelector('b')?.textContent;if(!d)return;const previous=modes(p).map(m=>{const v=allRecords(p)[d]?.[m]?.legacyPrior;return v?`${modeLabel(m)} · 기존 버전 기록 ${v.score??'채점 전'}/15 · ${fmt(v.time||0)}`:''}).filter(Boolean);if(previous.length)el.insertAdjacentHTML('beforeend','<div class="small">보존한 이전 학습: '+previous.join(' / ')+'</div>')})};
+const familyHome=renderHome;
+renderHome=function(){familyHome();$('#profiles [data-profile="dad"]')?.remove()};
+renderHome();
+const storedDailySet=dailySet;
+dailySet=function(p,m,d=TODAY){const value=storedDailySet(p,m,d);if(d===TODAY){const beforeP=currentProfile,beforeM=currentMode;currentProfile=p;currentMode=m;rememberProblemSet(value.problems);currentProfile=beforeP;currentMode=beforeM}return value};
 
 </script>
 </body>
