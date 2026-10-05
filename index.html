@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.04.16';
+const PORTAL_VERSION='2026.10.05.17';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -740,7 +740,7 @@ function makeDad(mode){const r=rngFor(mode),pool=mode==='japanese'?JP:DAD_PHRASE
 const legacyReview=makeReview,legacyFraction=makeFractions;
 makeReview=function(){let q=legacyReview();if(currentProfile==='yeju'){const r=rngFor('review-upgrade'),a=ri(r,2,9),x=ri(r,2,8);q[10]=Q('정비례·반비례',`y=${a*x}/x에서 x=${x}일 때 y를 구하고, x가 두 배가 되면 y는 어떻게 되는지 쓰세요.`,`${a}, 절반`,`반비례 y=k/x에서는 xy=${a*x}가 일정합니다. x=${x}일 때 y=${a}이고 x가 두 배이면 y는 절반입니다.`);const variants=[['AB','DC','평행'],['AB','CG','꼬인 위치'],['AE','BF','평행'],['AD','BC','평행'],['EF','CG','꼬인 위치']];for(let i=12;i<14;i++){const v=variants[ri(r,0,4)];q[i]=Q('공간의 위치관계',`아래 직육면체에서 직선 ${v[0]}와 직선 ${v[1]}의 관계는 무엇인가요?`,v[2],v[2]==='평행'?'한 평면 위에서 만나지 않고 방향이 같은 두 직선은 평행입니다.':'만나지 않으며 평행하지 않고 한 평면 위에 놓이지 않는 두 직선은 꼬인 위치입니다.','같은 평면 위에 놓일 수 있는지도 확인하세요.',cubeSVG())}const n=ri(r,3,20);q[14].prompt=`가로 ${n}cm인 모형의 모서리를 살펴봅니다. `+q[14].prompt;}else{q[0].prompt=q[0].prompt.replace('계산하세요','계산하세요');if(numberAnswer(q[0].answer)<0){const r=rngFor('nonnegative'),a=ri(r,4,9),b=ri(r,2,7),c=ri(r,1,8);q[0]=Q('자연수의 혼합계산',`${a*b+c} − ${a} × ${b}를 계산하세요.`,`${c}`,`곱셈 ${a}×${b}=${a*b}을 먼저 계산하고 빼면 ${c}입니다.`)}}return q};
 function generate(mode){let output=[];const recent=recentQuestionSignatures();for(let salt=0;salt<300;salt++){GEN_SALT=salt;const list=mode==='fraction'?legacyFraction():mode==='review'?makeReview():mode==='english'&&currentProfile==='yeju'?makeEnglish():makeDad(mode);for(let i=0;i<15;i++){const p=list[i],sig=questionSignature(p);if(output[i])continue;if(!p||/NaN|Infinity|undefined/.test(p.prompt+' '+p.answer))continue;if(output.some(x=>x&&questionSignature(x)===sig))continue;if((mode==='fraction'||mode==='review')&&recent.has(sig))continue;output[i]=p}if(output.filter(Boolean).length===15)break}if(output.filter(Boolean).length!==15)throw Error('유효한 문제를 생성하지 못했습니다.');output.forEach((p,i)=>{p.concept=p.concept||p.hint||p.topic;if(/서술형|복합|통분|소인수분해|약수|최대공약수|문자와 식|정비례/.test(p.topic))p.manual=true;if(!p.options&&!p.manual&&i%4===1){const n=numberAnswer(p.answer);if(n!==null){p.options=[p.answer,String(n+1),String(n+2),String(n===0?-1:n-1)]}}if(p.options)p.options=[...new Set(p.options)].sort(()=>0);});return output}
-function dailySet(p,m,date=TODAY){const key=setKey(p,m,date),old=readJSON(key,null);if(old)return old;const saveP=currentProfile,saveM=currentMode;currentProfile=p;currentMode=m;let problems;try{problems=generate(m)}finally{currentProfile=saveP;currentMode=saveM}const x={schema:3,version:PORTAL_VERSION,date,profile:p,mode:m,problems,answers:Array(15).fill(''),grades:Array(15).fill(null),strokes:[],phase:'initial',initialScore:null,attempts:[],elapsed:0,index:0};writeJSON(key,x);return x}
+function dailySet(p,m,date=TODAY){const key=setKey(p,m,date),old=readJSON(key,null);if(old)return old;const saveP=currentProfile,saveM=currentMode;currentProfile=p;currentMode=m;let problems;try{problems=prepareFiveChoices({date,mode:m,problems:generate(m)}).problems}finally{currentProfile=saveP;currentMode=saveM}const x={schema:3,version:PORTAL_VERSION,date,profile:p,mode:m,problems,answers:Array(15).fill(''),grades:Array(15).fill(null),strokes:[],phase:'initial',initialScore:null,attempts:[],elapsed:0,index:0};writeJSON(key,x);return x}
 function modes(p){return p==='dad'?['english','japanese']:p==='yeju'?['fraction','review','english']:['fraction','review']}
 const modeLabel=m=>({fraction:'분수 기본연산 15',review:'누적복습 15',english:'영어 15',japanese:'초급 일본어 15'}[m]);
 const oldHome=renderHome;
@@ -782,6 +782,8 @@ function backup(){const data={schema:3,exportedAt:new Date().toISOString(),stora
 const bar=$('#home .toolbar');bar.insertAdjacentHTML('beforeend','<button class="btn light" id="backupBtn">기록·필기 백업</button><button class="btn light" id="importBtn">백업 가져오기</button><input id="importFile" type="file" accept="application/json" hidden><div class="small" id="versionInfo"></div>');$('#versionInfo').textContent='학습 버전 '+PORTAL_VERSION+' · 기존 내용·기록 보존';$('#backupBtn').onclick=backup;$('#importBtn').onclick=()=>$('#importFile').click();$('#importFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(!data.storage||typeof data.storage!=='object')throw Error();for(const [k,v] of Object.entries(data.storage))if(k.startsWith('family')&&typeof v==='string'&&localStorage.getItem(k)===null)localStorage.setItem(k,v);alert('백업을 가져왔습니다. 이미 있는 기록은 보존했습니다.');renderHome()}catch{alert('가족학습 백업 파일을 확인해 주세요.')}};
 const style=document.createElement('style');style.textContent='.choices{display:grid;gap:10px;margin:16px 0}.choice{display:flex;gap:12px;align-items:center;padding:15px;border:1px solid #dde3ec;border-radius:12px;cursor:pointer}.choice:has(input:checked){background:#eef2ff;border-color:#4768e6}.choice input{width:20px;height:20px}.answerInput{display:block;width:100%;padding:14px;margin:10px 0;font:inherit;border:1px solid #cfd7e4;border-radius:12px}.fraction .top{margin:0;display:block}.explain.show{display:block}select{padding:9px;max-width:100%;border:1px solid #dde3ec;border-radius:10px}';document.head.append(style);
 renderHome();
+
+
 
 
 
@@ -947,20 +949,22 @@ function mathChoiceOptions(problem,fractionMode,index){
   }else if(/^(평행|수직|꼬인 위치|한 점에서 만남)$/.test(answer)){
     for(const value of ['평행','수직','꼬인 위치','한 점에서 만남'])add(value);
   }
-  if(options.length<4&&/-?\d+/.test(answer)){for(const delta of [1,-1,2,3])add(answer.replace(/-?\d+/,value=>String(+value+delta)))}
-  for(const value of ['주어진 조건으로는 결정할 수 없다.','조건에 맞는 답이 없다.','문제의 모든 값이 0이다.','위 조건은 서로 모순이다.'])if(options.length<4)add(value);
-  const chosen=options.slice(0,4),random=RNG(hash(currentProfile+'|'+currentMode+'|'+activeDate+'|'+index+'|math-choices'));
+  if(options.length<5&&/-?\d+/.test(answer)){for(const delta of [1,-1,2,3])add(answer.replace(/-?\d+/,value=>String(+value+delta)))}
+  for(const value of ['주어진 조건으로는 결정할 수 없다.','조건에 맞는 답이 없다.','문제의 모든 값이 0이다.','위 조건은 서로 모순이다.'])if(options.length<5)add(value);
+  const chosen=options.slice(0,5),random=RNG(hash(currentProfile+'|'+currentMode+'|'+activeDate+'|'+index+'|math-choices'));
   for(let i=chosen.length-1;i>0;i--){const j=ri(random,0,i);[chosen[i],chosen[j]]=[chosen[j],chosen[i]]}
   return {answer,options:chosen};
 }
-function prepareMathChoices(set){if(!['yeju','yeyeon'].includes(set.profile)||!['fraction','review'].includes(set.mode)||set.mathChoiceFormat===2&&set.problems.every(p=>p.options?.length===4&&!p.manual))return set;
+function prepareMathChoices(set){if(!['yeju','yeyeon'].includes(set.profile)||!['fraction','review'].includes(set.mode)||set.mathChoiceFormat===3&&set.problems.every(p=>p.options?.length>=4&&!p.manual))return set;
   if(!set.previousQuestionFormats)set.previousQuestionFormats=[{version:set.version,problems:JSON.parse(JSON.stringify(set.problems)),answers:[...set.answers]}];
-  set.problems=set.problems.map((original,i)=>{const p={...original},fractionMode=set.mode==='fraction'||(set.profile==='yeyeon'&&numberAnswer(p.answer)!==null&&!Number.isInteger(numberAnswer(p.answer))&&!p.topic.includes('소수'))||p.topic.includes('분수')||p.prompt.includes('class="fraction"'),choice=mathChoiceOptions(p,fractionMode,i);p.answer=choice.answer;p.options=choice.options;p.manual=false;p.concept=p.concept||p.hint||p.topic;if(fractionMode&&/\d+\.\d+/.test(p.explain))p.explain=p.explain.replace(/\d+\.\d+/g,value=>mathFractionText(+value));const saved=set.answers[i];if(saved&&isCorrect(saved,choice.answer))set.answers[i]=choice.answer;return p});set.mathChoiceFormat=2;return set;
+  set.problems=set.problems.map((original,i)=>{const p={...original},fractionMode=set.mode==='fraction'||(set.profile==='yeyeon'&&numberAnswer(p.answer)!==null&&!Number.isInteger(numberAnswer(p.answer))&&!p.topic.includes('소수'))||p.topic.includes('분수')||p.prompt.includes('class="fraction"'),choice=set.mathChoiceFormat>=2&&p.options?.length>=4&&!p.manual?{answer:String(p.answer),options:[...p.options]}:mathChoiceOptions(p,fractionMode,i);p.answer=choice.answer;p.options=choice.options;p.manual=false;p.concept=p.concept||p.hint||p.topic;if(fractionMode&&/\d+\.\d+/.test(p.explain))p.explain=p.explain.replace(/\d+\.\d+/g,value=>mathFractionText(+value));const saved=set.answers[i];if(saved&&isCorrect(saved,choice.answer))set.answers[i]=choice.answer;return p});set.mathChoiceFormat=3;return set;
 }
 const dailySetBeforeMathChoices=dailySet;
 dailySet=function(p,m,d=TODAY){const set=dailySetBeforeMathChoices(p,m,d);prepareMathChoices(set);writeJSON(setKey(p,m,d),set);return set};
 const dashboardBeforeMathChoices=openDashboard;
 openDashboard=function(p){dashboardBeforeMathChoices(p);if(['yeju','yeyeon'].includes(p))for(const mode of ['fraction','review']){const card=$(`[data-start="${mode}"]`)?.closest('.studyCard');if(card){const text=card.querySelector('p');text.textContent+=' · 모두 객관식 · 전체 풀이 후 채점'}}};
+
+
 
 
 /* Korean calendar day; retain the old day's local answers before reloading. */
@@ -1094,11 +1098,37 @@ openStudy=function(mode){openStudyBeforeFreeStudy(mode);if(!isFreeJapanese()||ro
 document.addEventListener('click',event=>{if(!isFreeJapanese()||role==='mom'||!event.target.closest('#finishBtn,[data-study-wrap-up]'))return;event.preventDefault();event.stopImmediatePropagation();finishFreeJapanese()},{capture:true});
 const renderBeforeClearMathInstructions=renderProblems;
 function objectiveMathPrompt(text){return text.replace(/단,\s*답만 쓰지 말고[\s\S]*$/,'보기에서 최종 답을 고르세요. 두 단계의 계산은 필기란에서 연습해 보세요.').replace(/마지막으로,\s*②에서[\s\S]*$/,'위 조건을 모두 만족하는 보기를 고르세요.').replace(/① 먼저[\s\S]*을 차례대로 쓰세요\./,'최종 답을 보기에서 고르세요.').replace(/모두 쓰고/g,'모두 확인하고').replace(/모두 쓰며/g,'모두 확인하며').replace(/모두 쓰세요/g,'모두 나타낸 보기를 고르세요');}
-renderProblems=function(){if(['yeju','yeyeon'].includes(currentProfile)&&['fraction','review'].includes(currentMode)){prepareMathChoices(activeSet);currentProblems=activeSet.problems.map(problem=>({...problem,prompt:objectiveMathPrompt(problem.prompt),topic:problem.topic.replace('서술형','복합 객관식')}))}renderBeforeClearMathInstructions();if(role==='mom')currentProblems.forEach((problem,i)=>{if(!problem.options)return;const section=document.querySelector(`[data-problem="${i}"]`),choices=document.createElement('div');choices.className='choices';choices.innerHTML=problem.options.map((option,k)=>`<div class="choice" ${option===problem.answer?'style="background:#e5f5ed;border-color:#138a5b"':''}><span>${['①','②','③','④'][k]} ${esc(readableMath(option))}${option===problem.answer?' · ✓ 정답':''}</span></div>`).join('');section.querySelector('.canvasWrap').before(choices)});};
+renderProblems=function(){if(['yeju','yeyeon'].includes(currentProfile)&&['fraction','review'].includes(currentMode)){prepareMathChoices(activeSet);currentProblems=activeSet.problems.map(problem=>({...problem,prompt:objectiveMathPrompt(problem.prompt),topic:problem.topic.replace('서술형','복합 객관식')}))}renderBeforeClearMathInstructions();if(role==='mom')currentProblems.forEach((problem,i)=>{if(!problem.options)return;const section=document.querySelector(`[data-problem="${i}"]`),choices=document.createElement('div');choices.className='choices';choices.innerHTML=problem.options.map((option,k)=>`<div class="choice" ${option===problem.answer?'style="background:#e5f5ed;border-color:#138a5b"':''}><span>${['①','②','③','④','⑤'][k]} ${esc(readableMath(option))}${option===problem.answer?' · ✓ 정답':''}</span></div>`).join('');section.querySelector('.canvasWrap').before(choices)});};
 renderHome();
 const momSidebarBeforeFreeStudy=renderMomSidebar;
 renderMomSidebar=function(){momSidebarBeforeFreeStudy();const label=$('[data-mom-person="yeju"][data-mom-mode="japanese"] small');if(label)label.textContent='자유학습'};
 
+
+
+function prepareFiveChoices(set){
+  if(!set?.problems)return set;
+  set.problems.forEach((problem,index)=>{
+    if(!problem.options||problem.options.length>=5)return;
+    const candidates=['fraction','review'].includes(set.mode)?mathChoiceOptions(problem,set.mode==='fraction'||problem.topic.includes('분수'),index).options:set.problems.filter(p=>p.topic===problem.topic).flatMap(p=>[p.answer,...(p.options||[])]);
+    const offset=hash(set.date+'|'+set.mode+'|'+index)%Math.max(1,candidates.length);
+    for(let i=0;i<candidates.length&&problem.options.length<5;i++){const option=String(candidates[(offset+i)%candidates.length]);if(!problem.options.some(existing=>isCorrect(existing,option)))problem.options.push(option)}
+    if(problem.options.length<5)problem.options.push('주어진 보기 중에는 정답이 없다.');
+  });return set;
+}
+const dailySetBeforeFiveChoices=dailySet;
+dailySet=function(profile,mode,date=TODAY){const value=prepareFiveChoices(dailySetBeforeFiveChoices(profile,mode,date));writeJSON(setKey(profile,mode,date),value);return value};
+const renderBeforeLandscape=renderProblems;
+renderProblems=function(){prepareFiveChoices(activeSet);renderBeforeLandscape();for(const section of $$('#problemArea .problem')){const choices=section.querySelector('.choices'),navigation=section.querySelector('.bottomNav');if(!choices||!navigation)continue;const row=document.createElement('div');row.className='answerNavigation';choices.before(row);row.append(choices,navigation);choices.querySelectorAll('.choice').forEach((choice,index)=>{if(role==='mom')return;const marker=document.createElement('b');marker.className='choiceNumber';marker.textContent=['①','②','③','④','⑤'][index];choice.insertBefore(marker,choice.querySelector('span'))})}};
+const landscapeStyle=document.createElement('style');landscapeStyle.textContent=`
+.answerNavigation{display:flex;align-items:center;gap:16px;margin:16px 0}
+.answerNavigation .choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;flex:1;min-width:0;margin:0}
+.answerNavigation .choice{display:flex;align-items:center;gap:8px;min-height:54px;padding:12px;box-sizing:border-box;overflow-wrap:anywhere}
+.choiceNumber{flex-shrink:0;color:#52617a}
+.answerNavigation .bottomNav{display:flex;flex-direction:column;gap:10px;margin:0;flex:0 0 126px}
+.answerNavigation .bottomNav .btn{min-height:58px;min-width:0;width:100%;padding:12px 10px}
+.answerNavigation .bottomNav .btn:last-child{order:-1;background:#4768e6;color:white;font-weight:800}
+@media(max-width:599px){.answerNavigation{gap:8px;align-items:flex-start}.answerNavigation .choices{gap:8px}.answerNavigation .choice{padding:9px;min-height:54px}.answerNavigation .bottomNav{flex-basis:82px}.answerNavigation .bottomNav .btn{font-size:13px;padding:10px 6px}}
+`;document.head.append(landscapeStyle);
 
 </script>
 </body>
