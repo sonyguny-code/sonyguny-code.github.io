@@ -711,7 +711,7 @@ function renderCalendar(){
 </script>
 <script>
 /* Family portal v3: additive upgrade; legacy generators and records retained. */
-const PORTAL_VERSION='2026.10.05.17';
+const PORTAL_VERSION='2026.10.05.18';
 let role='student', activeSet=null, activeDate=TODAY, routeRestoring=false;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function readJSON(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch{return fallback}}
@@ -782,6 +782,7 @@ function backup(){const data={schema:3,exportedAt:new Date().toISOString(),stora
 const bar=$('#home .toolbar');bar.insertAdjacentHTML('beforeend','<button class="btn light" id="backupBtn">기록·필기 백업</button><button class="btn light" id="importBtn">백업 가져오기</button><input id="importFile" type="file" accept="application/json" hidden><div class="small" id="versionInfo"></div>');$('#versionInfo').textContent='학습 버전 '+PORTAL_VERSION+' · 기존 내용·기록 보존';$('#backupBtn').onclick=backup;$('#importBtn').onclick=()=>$('#importFile').click();$('#importFile').onchange=async e=>{try{const data=JSON.parse(await e.target.files[0].text());if(!data.storage||typeof data.storage!=='object')throw Error();for(const [k,v] of Object.entries(data.storage))if(k.startsWith('family')&&typeof v==='string'&&localStorage.getItem(k)===null)localStorage.setItem(k,v);alert('백업을 가져왔습니다. 이미 있는 기록은 보존했습니다.');renderHome()}catch{alert('가족학습 백업 파일을 확인해 주세요.')}};
 const style=document.createElement('style');style.textContent='.choices{display:grid;gap:10px;margin:16px 0}.choice{display:flex;gap:12px;align-items:center;padding:15px;border:1px solid #dde3ec;border-radius:12px;cursor:pointer}.choice:has(input:checked){background:#eef2ff;border-color:#4768e6}.choice input{width:20px;height:20px}.answerInput{display:block;width:100%;padding:14px;margin:10px 0;font:inherit;border:1px solid #cfd7e4;border-radius:12px}.fraction .top{margin:0;display:block}.explain.show{display:block}select{padding:9px;max-width:100%;border:1px solid #dde3ec;border-radius:10px}';document.head.append(style);
 renderHome();
+
 
 
 
@@ -1098,10 +1099,11 @@ openStudy=function(mode){openStudyBeforeFreeStudy(mode);if(!isFreeJapanese()||ro
 document.addEventListener('click',event=>{if(!isFreeJapanese()||role==='mom'||!event.target.closest('#finishBtn,[data-study-wrap-up]'))return;event.preventDefault();event.stopImmediatePropagation();finishFreeJapanese()},{capture:true});
 const renderBeforeClearMathInstructions=renderProblems;
 function objectiveMathPrompt(text){return text.replace(/단,\s*답만 쓰지 말고[\s\S]*$/,'보기에서 최종 답을 고르세요. 두 단계의 계산은 필기란에서 연습해 보세요.').replace(/마지막으로,\s*②에서[\s\S]*$/,'위 조건을 모두 만족하는 보기를 고르세요.').replace(/① 먼저[\s\S]*을 차례대로 쓰세요\./,'최종 답을 보기에서 고르세요.').replace(/모두 쓰고/g,'모두 확인하고').replace(/모두 쓰며/g,'모두 확인하며').replace(/모두 쓰세요/g,'모두 나타낸 보기를 고르세요');}
-renderProblems=function(){if(['yeju','yeyeon'].includes(currentProfile)&&['fraction','review'].includes(currentMode)){prepareMathChoices(activeSet);currentProblems=activeSet.problems.map(problem=>({...problem,prompt:objectiveMathPrompt(problem.prompt),topic:problem.topic.replace('서술형','복합 객관식')}))}renderBeforeClearMathInstructions();if(role==='mom')currentProblems.forEach((problem,i)=>{if(!problem.options)return;const section=document.querySelector(`[data-problem="${i}"]`),choices=document.createElement('div');choices.className='choices';choices.innerHTML=problem.options.map((option,k)=>`<div class="choice" ${option===problem.answer?'style="background:#e5f5ed;border-color:#138a5b"':''}><span>${['①','②','③','④','⑤'][k]} ${esc(readableMath(option))}${option===problem.answer?' · ✓ 정답':''}</span></div>`).join('');section.querySelector('.canvasWrap').before(choices)});};
+renderProblems=function(){if(['yeju','yeyeon'].includes(currentProfile)&&['fraction','review'].includes(currentMode)){prepareMathChoices(activeSet);currentProblems=activeSet.problems.map(problem=>({...problem,prompt:objectiveMathPrompt(problem.prompt),topic:problem.topic.replace('서술형','복합 객관식')}))}renderBeforeClearMathInstructions();if(role==='mom')currentProblems.forEach((problem,i)=>{if(!problem.options)return;const section=document.querySelector(`[data-problem="${i}"]`),choices=document.createElement('div');choices.className='choices';choices.innerHTML=problem.options.map((option,k)=>`<div class="choice" ${option===problem.answer?'style="background:#e5f5ed;border-color:#138a5b"':''}><span>${['①','②','③','④','⑤'][k]} ${esc(readableMath(option))}${option===problem.answer?' · ✓ 정답':''}</span></div>`).join('');(section.querySelector('.canvasWrap')||section.querySelector('.questionInkSurface')).after(choices)});};
 renderHome();
 const momSidebarBeforeFreeStudy=renderMomSidebar;
 renderMomSidebar=function(){momSidebarBeforeFreeStudy();const label=$('[data-mom-person="yeju"][data-mom-mode="japanese"] small');if(label)label.textContent='자유학습'};
+
 
 
 
@@ -1129,6 +1131,33 @@ const landscapeStyle=document.createElement('style');landscapeStyle.textContent=
 .answerNavigation .bottomNav .btn:last-child{order:-1;background:#4768e6;color:white;font-weight:800}
 @media(max-width:599px){.answerNavigation{gap:8px;align-items:flex-start}.answerNavigation .choices{gap:8px}.answerNavigation .choice{padding:9px;min-height:54px}.answerNavigation .bottomNav{flex-basis:82px}.answerNavigation .bottomNav .btn{font-size:13px;padding:10px 6px}}
 `;document.head.append(landscapeStyle);
+
+// One existing canvas covers the question and its blank working space.
+const initBeforeQuestionInk=initCanvases;
+initCanvases=function(){
+  const draft=readJSON(draftKey(),null);
+  activeSet.questionInkOffsets=activeSet.questionInkOffsets||draft?.questionInkOffsets||[];
+  for(const section of $$('#problemArea .problem')){
+    const question=section.querySelector('.question'),figure=section.querySelector('.figure'),wrap=section.querySelector('.canvasWrap'),canvas=wrap.querySelector('canvas');
+    const surface=document.createElement('div');surface.className='questionInkSurface';question.before(surface);surface.append(question);if(figure)surface.append(figure);
+    const blank=document.createElement('div');blank.className='questionInkBlank';surface.append(blank,canvas);wrap.remove();
+  }
+  initBeforeQuestionInk();
+  session.canvases.forEach((cs,i)=>{const before=cs.resize;cs.resize=function(){before();if(!cs.questionLayoutReady)return;const height=cs.c.parentElement.querySelector('.questionInkBlank').offsetTop;if(cs.c.getBoundingClientRect().width<10)return;if(activeSet.questionInkOffsets[i]==null){cs.strokes.forEach(stroke=>stroke.pts.forEach(point=>point.y+=height));activeSet.questionInkOffsets[i]=height;redraw(cs)}}});
+};
+const renderBeforeQuestionInk=renderProblems;
+renderProblems=function(){renderBeforeQuestionInk();for(const section of $$('#problemArea .problem')){const surface=section.querySelector('.questionInkSurface'),row=section.querySelector('.answerNavigation');if(row)surface.querySelector('.questionInkBlank').before(row)}session.canvases.forEach(cs=>cs.questionLayoutReady=true);session.canvases[currentIndex]?.resize()};
+const draftBeforeQuestionInk=saveDrawingDraft;
+saveDrawingDraft=function(){draftBeforeQuestionInk();if(role==='mom')return;const draft=readJSON(draftKey(),null);if(draft){draft.questionInkOffsets=activeSet.questionInkOffsets;writeJSON(draftKey(),draft)}};
+const questionInkStyle=document.createElement('style');questionInkStyle.textContent=`
+.questionInkSurface{position:relative;isolation:isolate;margin-bottom:16px;background:white;border-radius:12px}
+.questionInkSurface .question{padding:10px 8px;margin:0;pointer-events:none}
+.questionInkSurface .figure{pointer-events:none}
+.questionInkSurface .answerNavigation{position:relative;z-index:3;background:white}
+.questionInkBlank{height:240px;background:linear-gradient(transparent 31px,#eef1f5 32px);background-size:100% 32px}
+.questionInkSurface canvas{position:absolute;inset:0;width:100%;height:100%;z-index:2;touch-action:pan-y;border:0;background:transparent}
+@media(orientation:landscape){.questionInkBlank{height:180px}}
+`;document.head.append(questionInkStyle);
 
 </script>
 </body>
